@@ -168,6 +168,17 @@ button{font:inherit;cursor:pointer}
 .ring{position:absolute;width:20%;aspect-ratio:1;border-radius:50%;transform:translate(-50%,-50%) scale(.3);border:3px solid var(--glow,#ffb35c);animation:ring .45s ease-out forwards}
 @keyframes ring{to{transform:translate(-50%,-50%) scale(1.6);opacity:0;border-width:1px}}
 .board.shake{animation:shake .35s ease-out}
+/* --- cinématique du trou noir --- */
+.bh-veil{position:absolute;inset:0;border-radius:18px;pointer-events:none;z-index:2;opacity:0;transition:opacity 1.2s ease;background:radial-gradient(circle at var(--hx) var(--hy),transparent 0,transparent 9%,#05030cee 55%)}
+.bh-veil.on{opacity:1}
+.bh-flash{position:fixed;inset:0;z-index:40;pointer-events:none;background:radial-gradient(circle at var(--fx) var(--fy),#fff 0,#fff6dd 18%,#ffd59a00 70%);opacity:0;animation:bhflash 1.1s ease-out forwards}
+@keyframes bhflash{0%{opacity:0}12%{opacity:1}100%{opacity:0}}
+.bh-caption{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:7;pointer-events:none;text-align:center;font-weight:800;color:#fff;text-shadow:0 0 18px #ff9a3a,0 2px 6px #000;font-size:1.5rem;opacity:0;animation:bhcap 2.2s ease-out forwards;white-space:nowrap}
+.bh-caption small{display:block;font-family:var(--mono);font-size:.8rem;letter-spacing:.14em;color:#ffd59a;margin-top:6px}
+@keyframes bhcap{0%{opacity:0;transform:translate(-50%,-50%) scale(.6)}20%{opacity:1;transform:translate(-50%,-50%) scale(1.05)}75%{opacity:1}100%{opacity:0;transform:translate(-50%,-60%) scale(1)}}
+.bh-core .face{background:transparent!important;transition:background .6s}
+.bh-core .name,.bh-core .face::before{opacity:0;transition:opacity .4s}
+.bh-skip{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:41;font-family:var(--mono);font-size:.68rem;color:#ffffff80;pointer-events:none}
 .board.shake-big{animation:shake .6s ease-out}
 @keyframes shake{15%{transform:translate(-5px,2px)}30%{transform:translate(4px,-3px)}45%{transform:translate(-3px,-2px)}60%{transform:translate(2px,3px)}80%{transform:translate(-1px,0)}}
 .board{position:relative;aspect-ratio:1;width:min(100%, calc(100dvh - 240px));margin:0 auto;max-width:100%;background:var(--panel);border-radius:18px;touch-action:none;user-select:none;-webkit-user-select:none;box-shadow:inset 0 0 0 1px #ffffff0d}
@@ -517,6 +528,94 @@ function fxLoop(){
   parts=parts.filter(p=>p.life>0);
   if(parts.length||flashes.length)requestAnimationFrame(fxLoop);else{c.clearRect(0,0,fxW,fxH);fxRun=false}
 }
+/* --- Cinématique : le trou noir aspire tout le jeu, puis Big Bang --- */
+function blackHoleFinale(holes){
+  const h=holes[0];
+  const holeEl=els.get(h.id);
+  const [hx,hy]=center(h);
+  const W=board.clientWidth;
+  let swallowed=0;
+  const victims=[];
+  for(let r=0;r<4;r++)for(let c=0;c<4;c++){const t=grid[r][c];if(!t||t===h)continue;swallowed+=t.comet?64:2**t.lvl;victims.push(t)}
+  for(const x of holes.slice(1))swallowed+=4096;
+  const bonus=4096*holes.length+swallowed;
+  const T=reduced?0:1;
+  let skipped=false,ended=false;
+  const timers=[];const later=(f,ms)=>timers.push(setTimeout(f,ms*T));
+
+  /* voile sombre centré sur le trou */
+  const veil=document.createElement("div");veil.className="bh-veil";veil.style.setProperty("--hx",hx+"px");veil.style.setProperty("--hy",hy+"px");board.appendChild(veil);
+  requestAnimationFrame(()=>veil.classList.add("on"));
+  const skip=document.createElement("div");skip.className="bh-skip";skip.textContent="Touche pour passer";if(!reduced)document.body.appendChild(skip);
+
+  /* le trou noir grossit et tourne lentement */
+  const hb=holeEl&&holeEl.querySelector(".body");
+  if(hb&&!reduced){holeEl.style.zIndex=5;holeEl.classList.add("bh-core");hb.animate([{transform:"translateY(0) scale(1) rotate(0deg)"},{transform:"translateY(0) scale(1.8) rotate(-40deg)",offset:.3},{transform:"translateY(0) scale(3.2) rotate(-280deg)"}],{duration:3800,easing:"ease-in-out",fill:"forwards"})}
+  /* grondement qui monte */
+  tone(70,4.2,.16,"sawtooth",0,28);tone(110,3.6,.06,"sine",.3,55);buzz([40,80,40,80,60,60,120]);
+
+  /* tout le reste de l'interface penche vers le trou */
+  const br=board.getBoundingClientRect(),gx=br.left+hx,gy=br.top+hy;
+  const pulled=[...document.querySelectorAll("#app > header, #app > .modes, #app > .row")];
+  const pullAnims=reduced?[]:pulled.map(el=>{const r=el.getBoundingClientRect(),dx=gx-(r.left+r.width/2),dy=gy-(r.top+r.height/2);
+    return el.animate([{transform:"none",filter:"none"},{transform:`translate(${dx*.18}px,${dy*.18}px) scale(.9) rotate(${dx>0?4:-4}deg)`,filter:"blur(1.5px) brightness(.7)",offset:.7},{transform:`translate(${dx*.24}px,${dy*.24}px) scale(.86) rotate(${dx>0?6:-6}deg)`,filter:"blur(2px) brightness(.6)"}],{duration:3600,delay:500,easing:"cubic-bezier(.5,0,.8,.4)",fill:"forwards"})});
+  const boardAnim=reduced?null:board.animate([{transform:"none"},{transform:"rotate(-2deg) scale(.97)"}],{duration:3600,delay:600,easing:"ease-in",fill:"forwards"});
+
+  /* les astres partent en spirale, les plus proches d'abord */
+  victims.sort((a,b)=>Math.hypot(a.r-h.r,a.c-h.c)-Math.hypot(b.r-h.r,b.c-h.c));
+  victims.forEach((t,i)=>{
+    const el=els.get(t.id);if(!el)return;const f=el.querySelector(".face");
+    const [tx,ty]=center(t);const dx=tx-hx,dy=ty-hy;const R=Math.hypot(dx,dy),a0=Math.atan2(dy,dx);
+    if(reduced){el.remove();return}
+    const kf=[];const N=14;
+    for(let k=0;k<=N;k++){const p=k/N,e=p*p*(3-2*p),rr=R*(1-e),an=a0+e*Math.PI*2.4;
+      const x=hx+Math.cos(an)*rr-tx,y=hy+Math.sin(an)*rr-ty;
+      kf.push({transform:`translate(${x.toFixed(1)}px,${y.toFixed(1)}px) rotate(${(e*540).toFixed(0)}deg) scale(${(1-e*.92).toFixed(3)})`,filter:`brightness(${(1+e*1.6).toFixed(2)})`,opacity:k===N?0:1})}
+    const delay=700+i*(1900/Math.max(1,victims.length));
+    el.style.zIndex=4;
+    f.animate(kf,{duration:1500,delay,easing:"cubic-bezier(.45,0,.9,.6)",fill:"forwards"});
+    later(()=>{impactAt(hx,hy,t.comet?0:t.lvl);tone(300+i*40,.12,.05,"sine",0,90)},delay+1450);
+  });
+  /* flux de matière vers le trou pendant l'aspiration */
+  if(!reduced){let n=0;const stream=setInterval(()=>{if(++n>36||skipped){clearInterval(stream);return}inflow(hx,hy)},90);timers.push(stream)}
+
+  later(()=>finaleEnd(false),reduced?0:4300);
+  const onSkip=e=>{e.stopPropagation();if(!skipped&&!ended){skipped=true;finaleEnd(true)}};
+  if(!reduced)setTimeout(()=>addEventListener("pointerdown",onSkip,{capture:true,once:true}),400);
+
+  function finaleEnd(fast){
+    if(ended)return;ended=true;
+    removeEventListener("pointerdown",onSkip,{capture:true});
+    timers.forEach(clearTimeout);timers.forEach(clearInterval);
+    /* Big Bang */
+    const fl=document.createElement("div");fl.className="bh-flash";fl.style.setProperty("--fx",gx+"px");fl.style.setProperty("--fy",gy+"px");document.body.appendChild(fl);setTimeout(()=>fl.remove(),1200);
+    tone(55,1.4,.22,"triangle",0,30);tone(880,.6,.08,"sine",.02,220);buzz([150]);
+    pullAnims.forEach(a=>a.cancel());if(boardAnim)boardAnim.cancel();
+    veil.remove();skip.remove();
+    for(let r=0;r<4;r++)for(let c=0;c<4;c++){const t=grid[r][c];if(t){const d=els.get(t.id);if(d)d.remove();els.delete(t.id)}grid[r][c]=null}
+    if(!reduced)bigBang(hx,hy);
+    setScore(score+bonus);
+    const cap=document.createElement("div");cap.className="bh-caption";cap.innerHTML="Big Bang !<small>+"+bonus+" de masse</small>";board.appendChild(cap);setTimeout(()=>cap.remove(),2300);
+    setTimeout(()=>{
+      spawn();finish();
+      if(!wonShown){wonShown=true;setTimeout(()=>showOverlay("Trou noir créé",FACTS[MAX]+" Il a tout avalé, puis un nouvel univers est né : continue pour battre ton record.","Continuer","won"),900)}
+    },fast?300:700);
+  }
+}
+/* petits effets dédiés à la cinématique (toile de particules partagée) */
+function boardToFx(x,y){const W=board.clientWidth;return[x+W*.2,y+W*.2]}
+function impactAt(x,y,l){if(reduced)return;if(!fxW)fxSize();const [X,Y]=boardToFx(x,y),col=PAL[l]||PAL[1];
+  for(let i=0;i<8;i++){const a=Math.random()*Math.PI*2;addPart({x:X,y:Y,vx:Math.cos(a)*2.5,vy:Math.sin(a)*2.5,size:2+Math.random()*2,color:pick(col),decay:.05,drag:.9})}
+  flashes.push({x:X,y:Y,r:30,life:1,decay:.12,color:"255,190,120"});if(!fxRun){fxRun=true;requestAnimationFrame(fxLoop)}}
+function inflow(x,y){if(!fxW)fxSize();const [X,Y]=boardToFx(x,y),W=board.clientWidth;
+  for(let i=0;i<4;i++){const a=Math.random()*Math.PI*2,d=W*(.45+Math.random()*.4),sx=X+Math.cos(a)*d,sy=Y+Math.sin(a)*d,tan=a+Math.PI/2;
+    parts.push({x:sx,y:sy,vx:(X-sx)/26+Math.cos(tan)*2.2,vy:(Y-sy)/26+Math.sin(tan)*2.2,size:1.2+Math.random()*2,color:pick(PAL[12]),life:1,decay:.03,drag:1,g:0,shape:"streak",rot:0,vr:0})}
+  if(!fxRun){fxRun=true;requestAnimationFrame(fxLoop)}}
+function bigBang(x,y){if(!fxW)fxSize();const [X,Y]=boardToFx(x,y),W=board.clientWidth;
+  flashes.push({x:X,y:Y,r:W*.9,life:1,decay:.025,color:"255,240,210"});
+  const cols=[...PAL[10],...PAL[11],...PAL[1],...PAL[7]];
+  for(let i=0;i<120;i++){const a=Math.random()*Math.PI*2,v=2+Math.random()*9;parts.push({x:X,y:Y,vx:Math.cos(a)*v,vy:Math.sin(a)*v,size:1+Math.random()*3,color:pick(cols),life:1,decay:.012+Math.random()*.015,drag:.965,g:0,shape:i%3?"dot":"streak",rot:0,vr:0})}
+  if(!fxRun){fxRun=true;requestAnimationFrame(fxLoop)}}
 function shake(big){board.classList.remove("shake","shake-big");void board.offsetWidth;board.classList.add(big?"shake-big":"shake");setTimeout(()=>board.classList.remove("shake","shake-big"),650)}
 function setScore(n){
   if(n>score){scoreEl.classList.remove("bump");void scoreEl.offsetWidth;scoreEl.classList.add("bump")}
@@ -605,20 +704,7 @@ function move(dir){
     if(mode==="daily")checkMissions({merges:born.length,comet:cometUsedThisMove});
     const holes=born.filter(t=>t.lvl===MAX);
     if(holes.length){
-      setTimeout(()=>{
-        let swallowed=0;
-        for(const h of holes){
-          for(const [dr,dc] of [[0,0],[1,0],[-1,0],[0,1],[0,-1]]){
-            const r=h.r+dr,c=h.c+dc;if(r<0||r>3||c<0||c>3)continue;
-            const t=grid[r][c];if(!t)continue;
-            if(t!==h)swallowed+=t.comet?64:2**t.lvl;
-            grid[r][c]=null;const d=els.get(t.id);if(d){d.classList.add("gone");els.delete(t.id);setTimeout(()=>d.remove(),460)}
-          }
-        }
-        const bonus=4096*holes.length+swallowed;
-        setScore(score+bonus);toast("Trou noir ! +"+bonus);shake(true);buzz([60,40,120]);tone(160,1.1,.18,"sawtooth",0,30);
-        setTimeout(()=>{finish();if(!wonShown){wonShown=true;showOverlay("Trou noir créé",FACTS[MAX]+" Tu as bouclé le cycle cosmique : continue pour battre ton record.","Continuer","won")}},480);
-      },240);
+      setTimeout(()=>blackHoleFinale(holes),300);
     }else finish();
   },135);
 }
