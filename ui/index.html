@@ -146,6 +146,11 @@ button{font:inherit;cursor:pointer}
 .pseudoRow{display:flex;gap:8px}
 .pseudo input{flex:1;min-width:0;background:var(--panel);border:1.5px solid #ffffff1f;border-radius:12px;padding:9px 12px;color:var(--ink);font:inherit;font-size:16px}
 .pseudo input:focus{outline:none;border-color:var(--nova)}
+.pseudo label{color:var(--ink);font-weight:500}
+.pseudoErr{margin:0;color:#ff9a8a;font-size:.8rem}
+.pseudoNow{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:0 auto 12px;font-size:.88rem;color:var(--muted)}
+.pseudoNow b{color:var(--ink)}
+.link{border:0;background:none;color:var(--nova);font-weight:700;text-decoration:underline;padding:4px}
 .rankNote{margin:0 auto 10px;color:var(--muted);font-size:.86rem;line-height:1.4}
 .ranks{list-style:none;margin:0 auto;padding:0;display:flex;flex-direction:column;gap:6px}
 .ranks li{display:grid;grid-template-columns:28px 34px minmax(0,1fr) auto;align-items:center;gap:8px;background:var(--panel);border-radius:12px;padding:6px 10px}
@@ -309,9 +314,11 @@ button{font:inherit;cursor:pointer}
     <button type="button" id="tDaily" aria-pressed="true">Défi du jour</button>
     <button type="button" id="tAll" aria-pressed="false">Général</button>
   </div>
+  <div class="pseudoNow" id="pseudoNow" hidden><span>Ton pseudo : <b id="pseudoShown"></b></span><button class="link" id="pseudoEdit" type="button">Modifier</button></div>
   <form class="pseudo" id="pseudoForm" hidden>
-    <label for="pseudo">Ton pseudo</label>
-    <div class="pseudoRow"><input id="pseudo" maxlength="16" autocomplete="nickname" placeholder="ex. MattZepol"><button class="btn" type="submit">Enregistrer</button></div>
+    <label for="pseudo" id="pseudoLbl">Choisis ton pseudo pour apparaître dans le classement</label>
+    <div class="pseudoRow"><input id="pseudo" maxlength="16" autocomplete="off" spellcheck="false" placeholder="3 à 16 caractères"><button class="btn" type="submit">Valider</button></div>
+    <p class="pseudoErr" id="pseudoErr" hidden></p>
   </form>
   <p class="rankNote" id="rankNote">Chargement du classement…</p>
   <ol class="ranks" id="ranks"></ol>
@@ -670,9 +677,11 @@ addEventListener("keydown",e=>{if(e.key==="Escape"){if(!card.hidden)closeCard();
 let rankTab="daily",dayRows=[],remoteDay=0;
 let db=null,who=null,myId=null,rows=[],remoteBest=0,canPost=true,rankState="loading",topLvl=1,recordTop=1,pushTimer=0;
 try{recordTop=+localStorage.getItem("orbite-top")||1}catch(e){}
-let pseudo="";try{pseudo=localStorage.getItem("orbite-pseudo")||""}catch(e){}
+/* Le pseudo est géré par le serveur : c'est celui que le joueur a saisi, rien d'autre. */
+let pseudo="",editingPseudo=false,requirePseudo=true;
 const ranksEl=document.getElementById("ranks"),rankNote=document.getElementById("rankNote"),pseudoForm=document.getElementById("pseudoForm"),pseudoIn=document.getElementById("pseudo");
-pseudoIn.value=pseudo;
+const pseudoNow=document.getElementById("pseudoNow"),pseudoErr=document.getElementById("pseudoErr");
+document.getElementById("pseudoEdit").onclick=()=>{editingPseudo=true;pseudoIn.value=pseudo;renderRank();setTimeout(()=>pseudoIn.focus(),50)};
 function miniSprite(l){const src=window.SPRITES&&SPRITES[l];const c=document.createElement("canvas");c.width=c.height=68;if(src)c.getContext("2d").drawImage(src,0,0,68,68);return c}
 document.getElementById("tDaily").onclick=()=>{rankTab="daily";renderRank()};
 document.getElementById("tAll").onclick=()=>{rankTab="all";renderRank()};
@@ -684,7 +693,11 @@ async function renderRank(){
   document.getElementById("tDaily").setAttribute("aria-pressed",String(rankTab==="daily"));
   document.getElementById("tAll").setAttribute("aria-pressed",String(rankTab==="all"));
   const shown=rankTab==="daily"?dayRows:window.__allRows||[];
-  pseudoForm.hidden=!(myId&&canPost);
+  const askPseudo=!!myId&&canPost&&(!pseudo||editingPseudo);
+  pseudoForm.hidden=!askPseudo;
+  pseudoNow.hidden=!(pseudo&&!editingPseudo);
+  document.getElementById("pseudoShown").textContent=pseudo;
+  document.getElementById("pseudoLbl").textContent=pseudo?"Nouveau pseudo":"Choisis ton pseudo pour apparaître dans le classement";
   if(rankState==="off"){rankNote.textContent="Le classement n'est pas disponible pour le moment.";ranksEl.innerHTML="";return}
   if(rankState==="loading"){rankNote.textContent="Chargement du classement…";return}
   if(rankState==="error"){rankNote.textContent="Impossible de charger le classement pour le moment.";return}
@@ -692,6 +705,7 @@ async function renderRank(){
     ?(shown.length?"Défi du "+dayLabel+" : même partie pour tout le monde, le meilleur essai compte.":"Personne n'a encore joué le défi d'aujourd'hui. Lance « Défi du jour » pour prendre la première place.")
     :(shown.length?"Les meilleurs scores de toute la ville, tous modes confondus.":"Personne n'a encore de score. Termine une partie pour ouvrir le classement.");
   if(!canPost)note+=" Ton score n'a pas pu être envoyé au serveur.";
+  else if(!pseudo&&requirePseudo&&myId)note=(shown.length?note+" ":"")+"Tes scores sont déjà enregistrés : ils apparaîtront dès que tu auras choisi un pseudo.";
   rankNote.textContent=note;
   const ids=shown.map(r=>r.id);let ps={};
 
@@ -711,16 +725,20 @@ async function renderRank(){
 async function pushScore(force){
   if(!canPost)return;
   if(!force&&best<=remoteBest&&dayBest<=remoteDay&&dayDone.length<=remoteDone)return;
-  const r=await nui("submitScore",{best,top:recordTop,dayKey,dayBest,dayTop,done:dayDone.length,pseudo});
+  const r=await nui("submitScore",{best,top:recordTop,dayKey,dayBest,dayTop,done:dayDone.length});
   if(r&&r.ok){remoteBest=Math.max(remoteBest,best);remoteDay=Math.max(remoteDay,dayBest);remoteDone=dayDone.length;refreshBoard()}
   else if(r&&r.error==="denied"){canPost=false;renderRank()}
 }
 let remoteDone=0;
 function schedulePush(){clearTimeout(pushTimer);pushTimer=setTimeout(()=>pushScore(false),2500)}
-pseudoForm.addEventListener("submit",e=>{
-  e.preventDefault();pseudo=pseudoIn.value.trim().slice(0,16);
-  try{localStorage.setItem("orbite-pseudo",pseudo)}catch(err){}
-  pushScore(true);toast(pseudo?"Pseudo enregistré":"Pseudo retiré");
+const PSEUDO_ERR={invalid:"3 à 16 caractères : lettres, chiffres, espace, tiret, point ou tiret bas.",taken:"Ce pseudo est déjà pris par un autre joueur.",cooldown:"Patiente quelques secondes avant de réessayer."};
+pseudoForm.addEventListener("submit",async e=>{
+  e.preventDefault();
+  const v=pseudoIn.value.trim().replace(/\s+/g," ");
+  if(!/^[\p{L}\p{N} _.\-]{3,16}$/u.test(v)){pseudoErr.textContent=PSEUDO_ERR.invalid;pseudoErr.hidden=false;return}
+  const r=await nui("setPseudo",{pseudo:v});
+  if(r&&r.ok){pseudo=r.pseudo||v;editingPseudo=false;pseudoErr.hidden=true;toast("Pseudo enregistré");refreshBoard()}
+  else{pseudoErr.textContent=PSEUDO_ERR[r&&r.error]||"Le serveur n'a pas répondu, réessaie.";pseudoErr.hidden=false}
 });
 /* Pont avec le serveur FiveM : fetchNui est fourni par lb-phone dans l'appli.
    Dans un navigateur (développement), un mode démo local prend le relais. */
@@ -730,12 +748,13 @@ async function nui(name,data){
   if(inPhone){try{return await fetchNui(name,data)}catch(e){return null}}
   const d=demoBoard();
   if(name==="getBoard"){
-    const me={id:"demo",name:"Toi (démo)"};
-    const all=d.best?[{id:"demo",name:d.pseudo||me.name,best:d.best,top:d.top}]:[];
-    const daily=d.dayKey===dayKey&&d.dayBest?[{id:"demo",name:d.pseudo||me.name,best:d.dayBest,top:d.dayTop,done:d.done}]:[];
-    return{me,all,daily};
+    const me={id:"me",pseudo:d.pseudo||null,best:d.best||0,dayBest:d.dayKey===dayKey?d.dayBest||0:0};
+    const all=d.best&&d.pseudo?[{id:"me",name:d.pseudo,best:d.best,top:d.top}]:[];
+    const daily=d.pseudo&&d.dayKey===dayKey&&d.dayBest?[{id:"me",name:d.pseudo,best:d.dayBest,top:d.dayTop,done:d.done}]:[];
+    return{me,all,daily,requirePseudo:true};
   }
-  if(name==="submitScore"){try{localStorage.setItem("cosmos-demo",JSON.stringify(data))}catch(e){}return{ok:true}}
+  if(name==="submitScore"){try{localStorage.setItem("cosmos-demo",JSON.stringify({...d,...data}))}catch(e){}return{ok:true}}
+  if(name==="setPseudo"){try{localStorage.setItem("cosmos-demo",JSON.stringify({...d,pseudo:data.pseudo}))}catch(e){}return{ok:true,pseudo:data.pseudo}}
   return null;
 }
 async function refreshBoard(){
@@ -745,9 +764,13 @@ async function refreshBoard(){
   myId=r.me&&r.me.id||null;
   rows=(r.all||[]).filter(x=>typeof x.best==="number");window.__allRows=rows;
   dayRows=(r.daily||[]).filter(x=>typeof x.best==="number");
-  const mine=rows.find(x=>x.id===myId);if(mine)remoteBest=mine.best;
-  const md=dayRows.find(x=>x.id===myId);if(md){remoteDay=md.best;remoteDone=+md.done||0}
-  if(!pseudo&&r.me&&r.me.pseudo){pseudo=r.me.pseudo;pseudoIn.value=pseudo}
+  const me=r.me||{};
+  remoteBest=+me.best||0;remoteDay=+me.dayBest||0;remoteDone=+me.done||0;
+  if(inPhone){
+    /* le record affiché est celui du serveur pour ce joueur (ou ce personnage), pas celui du navigateur du téléphone */
+    if(!refreshBoard.synced){refreshBoard.synced=true;best=Math.max(remoteBest,score);dayBest=Math.max(remoteDay,mode==="daily"?score:0);bestEl.textContent=mode==="daily"?dayBest:best;try{localStorage.setItem("orbite-best",best)}catch(e){}}
+  }
+  pseudo=me.pseudo||"";requirePseudo=r.requirePseudo!==false;
   renderRank();
   if(best>remoteBest||dayBest>remoteDay||dayDone.length>remoteDone)schedulePush();
 }

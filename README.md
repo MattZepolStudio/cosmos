@@ -36,13 +36,31 @@ et fusionnent en l'astre suivant, de la poussière jusqu'au trou noir.
 
 Dépendances : `lb-phone`, `oxmysql`.
 
+## Le classement
+
+- **Le nom affiché est le pseudo saisi par le joueur**, dans l'onglet Classement
+  de l'appli. Tant qu'il n'en a pas choisi, ses scores sont enregistrés mais il
+  n'apparaît pas dans la liste (avec `Config.RequirePseudo = true`, réglage par défaut).
+- **Un pseudo est unique sur le serveur** (sans tenir compte des majuscules) :
+  3 à 16 caractères, lettres (accents compris), chiffres, espace, `_`, `.` et `-`.
+  Les mots de `Config.BannedWords` sont refusés. Le joueur peut le modifier à tout moment.
+- **Le serveur garde le meilleur score** de chaque joueur (table `cosmos_scores`)
+  et son meilleur score de chaque défi du jour (table `cosmos_daily`).
+  Le record affiché dans l'appli vient du serveur.
+- **Deux classements** : général (meilleur score de tous les temps) et défi du jour
+  (meilleur essai de la journée, avec les missions réussies).
+- Pour retirer un pseudo inapproprié : `UPDATE cosmos_scores SET pseudo = NULL WHERE pseudo = '...';`
+
 ## Réglages (`config.lua`)
 
 - `Config.DefaultApp` : appli installée d'office ou non.
 - `Config.BoardSize` : nombre de joueurs dans chaque classement.
+- `Config.RequirePseudo` : `true` = seuls les joueurs avec un pseudo apparaissent ;
+  `false` = sans pseudo, le joueur apparaît avec `Config.GetDisplayName`.
+- `Config.PseudoMinLength`, `Config.PseudoMaxLength`, `Config.BannedWords` : règles des pseudos.
 - `Config.MaxScore`, `Config.SubmitCooldown` : garde-fous contre la triche.
 - `Config.GetPlayerKey` : une ligne de classement par licence (par défaut) ou par personnage.
-- `Config.GetDisplayName` : nom affiché si le joueur n'a pas choisi de pseudo.
+- `Config.GetDisplayName` : nom enregistré avec le score, visible en base de données.
 
 ### Utiliser le nom du personnage RP
 

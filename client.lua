@@ -58,6 +58,10 @@ RegisterNUICallback("getBoard", function(data, cb)
     cb(askServer("cosmos:getBoard", data) or false)
 end)
 
+RegisterNUICallback("setPseudo", function(data, cb)
+    cb(askServer("cosmos:setPseudo", data) or { ok = false })
+end)
+
 RegisterNUICallback("submitScore", function(data, cb)
     cb(askServer("cosmos:submitScore", data) or { ok = false })
 end)
