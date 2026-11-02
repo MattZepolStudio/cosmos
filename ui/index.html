@@ -176,6 +176,15 @@ button{font:inherit;cursor:pointer}
 .bh-caption{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:7;pointer-events:none;text-align:center;font-weight:800;color:#fff;text-shadow:0 0 18px #ff9a3a,0 2px 6px #000;font-size:1.5rem;opacity:0;animation:bhcap 2.2s ease-out forwards;white-space:nowrap}
 .bh-caption small{display:block;font-family:var(--mono);font-size:.8rem;letter-spacing:.14em;color:#ffd59a;margin-top:6px}
 @keyframes bhcap{0%{opacity:0;transform:translate(-50%,-50%) scale(.6)}20%{opacity:1;transform:translate(-50%,-50%) scale(1.05)}75%{opacity:1}100%{opacity:0;transform:translate(-50%,-60%) scale(1)}}
+.bh-end{position:fixed;inset:0;z-index:50;background:#000;opacity:0;transition:opacity .6s ease;display:grid;place-items:center;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px))}
+.bh-end.on{opacity:1}
+.bh-msg{text-align:center;max-width:320px;opacity:0;transform:scale(.92);transition:opacity 1s ease,transform 1s cubic-bezier(.2,1.3,.4,1)}
+.bh-msg.on{opacity:1;transform:none}
+.bh-msg .eyebrow{margin:0 0 10px}
+.bh-msg h2{margin:0 0 12px;font-size:2rem;font-weight:800;color:#fff;text-shadow:0 0 24px #ff9a3a99;text-wrap:balance}
+.bh-msg p{margin:0 0 6px;color:#c3c9f0;line-height:1.45;font-size:.95rem}
+.bh-msg .mass{margin:16px 0 22px;font-family:var(--mono);color:var(--ink)}
+.bh-msg .mass b{display:block;font-size:2.2rem;color:var(--flare);font-variant-numeric:tabular-nums}
 .bh-core .face{background:transparent!important;transition:background .6s}
 .bh-core .name,.bh-core .face::before{opacity:0;transition:opacity .4s}
 .bh-skip{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:41;font-family:var(--mono);font-size:.68rem;color:#ffffff80;pointer-events:none}
@@ -528,78 +537,84 @@ function fxLoop(){
   parts=parts.filter(p=>p.life>0);
   if(parts.length||flashes.length)requestAnimationFrame(fxLoop);else{c.clearRect(0,0,fxW,fxH);fxRun=false}
 }
-/* --- Cinématique : le trou noir aspire tout le jeu, puis Big Bang --- */
+/* --- Cinématique : le trou noir aspire tout le jeu, écran noir, puis félicitations --- */
 function blackHoleFinale(holes){
   const h=holes[0];
   const holeEl=els.get(h.id);
   const [hx,hy]=center(h);
-  const W=board.clientWidth;
   let swallowed=0;
   const victims=[];
   for(let r=0;r<4;r++)for(let c=0;c<4;c++){const t=grid[r][c];if(!t||t===h)continue;swallowed+=t.comet?64:2**t.lvl;victims.push(t)}
-  for(const x of holes.slice(1))swallowed+=4096;
-  const bonus=4096*holes.length+swallowed;
+  swallowed+=4096*(holes.length-1);
+  const bonus=4096+swallowed;
+  over=true;
   const T=reduced?0:1;
-  let skipped=false,ended=false;
-  const timers=[];const later=(f,ms)=>timers.push(setTimeout(f,ms*T));
+  let ended=false;
+  const timers=[],anims=[];const later=(f,ms)=>timers.push(setTimeout(f,ms*T));
+  const br=board.getBoundingClientRect(),gx=br.left+hx,gy=br.top+hy;
 
   /* voile sombre centré sur le trou */
   const veil=document.createElement("div");veil.className="bh-veil";veil.style.setProperty("--hx",hx+"px");veil.style.setProperty("--hy",hy+"px");board.appendChild(veil);
   requestAnimationFrame(()=>veil.classList.add("on"));
   const skip=document.createElement("div");skip.className="bh-skip";skip.textContent="Touche pour passer";if(!reduced)document.body.appendChild(skip);
 
-  /* le trou noir grossit et tourne lentement */
+  /* le trou noir grossit en tournant */
   const hb=holeEl&&holeEl.querySelector(".body");
-  if(hb&&!reduced){holeEl.style.zIndex=5;holeEl.classList.add("bh-core");hb.animate([{transform:"translateY(0) scale(1) rotate(0deg)"},{transform:"translateY(0) scale(1.8) rotate(-40deg)",offset:.3},{transform:"translateY(0) scale(3.2) rotate(-280deg)"}],{duration:3800,easing:"ease-in-out",fill:"forwards"})}
-  /* grondement qui monte */
-  tone(70,4.2,.16,"sawtooth",0,28);tone(110,3.6,.06,"sine",.3,55);buzz([40,80,40,80,60,60,120]);
+  if(hb&&!reduced){holeEl.style.zIndex=5;holeEl.classList.add("bh-core");
+    anims.push(hb.animate([{transform:"translateY(0) scale(1) rotate(0deg)"},{transform:"translateY(0) scale(1.8) rotate(-40deg)",offset:.3},{transform:"translateY(0) scale(3.2) rotate(-300deg)"}],{duration:4200,easing:"ease-in-out",fill:"forwards"}))}
+  tone(70,4.6,.16,"sawtooth",0,28);tone(110,4,.06,"sine",.3,55);buzz([40,80,40,80,60,60,120]);
 
-  /* tout le reste de l'interface penche vers le trou */
-  const br=board.getBoundingClientRect(),gx=br.left+hx,gy=br.top+hy;
-  const pulled=[...document.querySelectorAll("#app > header, #app > .modes, #app > .row")];
-  const pullAnims=reduced?[]:pulled.map(el=>{const r=el.getBoundingClientRect(),dx=gx-(r.left+r.width/2),dy=gy-(r.top+r.height/2);
-    return el.animate([{transform:"none",filter:"none"},{transform:`translate(${dx*.18}px,${dy*.18}px) scale(.9) rotate(${dx>0?4:-4}deg)`,filter:"blur(1.5px) brightness(.7)",offset:.7},{transform:`translate(${dx*.24}px,${dy*.24}px) scale(.86) rotate(${dx>0?6:-6}deg)`,filter:"blur(2px) brightness(.6)"}],{duration:3600,delay:500,easing:"cubic-bezier(.5,0,.8,.4)",fill:"forwards"})});
-  const boardAnim=reduced?null:board.animate([{transform:"none"},{transform:"rotate(-2deg) scale(.97)"}],{duration:3600,delay:600,easing:"ease-in",fill:"forwards"});
+  /* spirale d'un élément vers le trou (coordonnées écran) */
+  function spiral(el,delay,dur,turns){
+    const r=el.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2,dx=cx-gx,dy=cy-gy,R=Math.hypot(dx,dy),a0=Math.atan2(dy,dx);
+    const kf=[];const N=16;
+    for(let k=0;k<=N;k++){const p=k/N,e=p*p*(3-2*p),rr=R*(1-e),an=a0+e*Math.PI*turns;
+      kf.push({transform:`translate(${(gx+Math.cos(an)*rr-cx).toFixed(1)}px,${(gy+Math.sin(an)*rr-cy).toFixed(1)}px) rotate(${(e*turns*180).toFixed(0)}deg) scale(${(1-e*.97).toFixed(3)})`,filter:`brightness(${(1+e*1.4).toFixed(2)})`,opacity:k===N?0:1})}
+    anims.push(el.animate(kf,{duration:dur,delay,easing:"cubic-bezier(.45,0,.9,.6)",fill:"forwards"}));
+  }
+  if(!reduced){
+    /* 1. les astres, les plus proches d'abord */
+    victims.sort((a,b)=>Math.hypot(a.r-h.r,a.c-h.c)-Math.hypot(b.r-h.r,b.c-h.c));
+    victims.forEach((t,i)=>{const el=els.get(t.id);if(!el)return;el.style.zIndex=4;
+      const d=600+i*(1500/Math.max(1,victims.length));spiral(el.querySelector(".face"),d,1400,2.4);
+      later(()=>{impactAt(hx,hy,t.comet?0:t.lvl);tone(300+i*40,.12,.05,"sine",0,90)},d+1350)});
+    /* 2. puis tout le reste du jeu : cases, logo, scores, boutons */
+    later(()=>{board.style.transition="background .8s, box-shadow .8s";board.style.background="transparent";board.style.boxShadow="none"},2300);
+    spiral(board.querySelector(".cells"),2300,1500,1.6);
+    const uiParts=[...document.querySelectorAll("#app > header, #app > .modes, #app > .row")];
+    uiParts.forEach((el,i)=>spiral(el,2500+i*220,1500,2));
+    let n=0;const stream=setInterval(()=>{if(++n>44){clearInterval(stream);return}inflow(hx,hy)},90);timers.push(stream);
+    /* 3. le trou noir se referme sur un point */
+    later(()=>{if(hb){anims.push(hb.animate([{transform:"translateY(0) scale(3.2) rotate(-300deg)"},{transform:"translateY(0) scale(3.6) rotate(-340deg)",offset:.3},{transform:"translateY(0) scale(0) rotate(-720deg)"}],{duration:700,easing:"ease-in",fill:"forwards"}))}
+      tone(55,.7,.2,"triangle",0,25);buzz([200])},4300);
+  }
+  later(()=>goBlack(false),reduced?0:5000);
+  const onSkip=e=>{e.stopPropagation();e.preventDefault();goBlack(true)};
+  if(!reduced)setTimeout(()=>{if(!ended)addEventListener("pointerdown",onSkip,{capture:true,once:true})},400);
 
-  /* les astres partent en spirale, les plus proches d'abord */
-  victims.sort((a,b)=>Math.hypot(a.r-h.r,a.c-h.c)-Math.hypot(b.r-h.r,b.c-h.c));
-  victims.forEach((t,i)=>{
-    const el=els.get(t.id);if(!el)return;const f=el.querySelector(".face");
-    const [tx,ty]=center(t);const dx=tx-hx,dy=ty-hy;const R=Math.hypot(dx,dy),a0=Math.atan2(dy,dx);
-    if(reduced){el.remove();return}
-    const kf=[];const N=14;
-    for(let k=0;k<=N;k++){const p=k/N,e=p*p*(3-2*p),rr=R*(1-e),an=a0+e*Math.PI*2.4;
-      const x=hx+Math.cos(an)*rr-tx,y=hy+Math.sin(an)*rr-ty;
-      kf.push({transform:`translate(${x.toFixed(1)}px,${y.toFixed(1)}px) rotate(${(e*540).toFixed(0)}deg) scale(${(1-e*.92).toFixed(3)})`,filter:`brightness(${(1+e*1.6).toFixed(2)})`,opacity:k===N?0:1})}
-    const delay=700+i*(1900/Math.max(1,victims.length));
-    el.style.zIndex=4;
-    f.animate(kf,{duration:1500,delay,easing:"cubic-bezier(.45,0,.9,.6)",fill:"forwards"});
-    later(()=>{impactAt(hx,hy,t.comet?0:t.lvl);tone(300+i*40,.12,.05,"sine",0,90)},delay+1450);
-  });
-  /* flux de matière vers le trou pendant l'aspiration */
-  if(!reduced){let n=0;const stream=setInterval(()=>{if(++n>36||skipped){clearInterval(stream);return}inflow(hx,hy)},90);timers.push(stream)}
-
-  later(()=>finaleEnd(false),reduced?0:4300);
-  const onSkip=e=>{e.stopPropagation();if(!skipped&&!ended){skipped=true;finaleEnd(true)}};
-  if(!reduced)setTimeout(()=>addEventListener("pointerdown",onSkip,{capture:true,once:true}),400);
-
-  function finaleEnd(fast){
+  /* écran noir 4 s, puis félicitations */
+  function goBlack(skipped){
     if(ended)return;ended=true;
     removeEventListener("pointerdown",onSkip,{capture:true});
-    timers.forEach(clearTimeout);timers.forEach(clearInterval);
-    /* Big Bang */
-    const fl=document.createElement("div");fl.className="bh-flash";fl.style.setProperty("--fx",gx+"px");fl.style.setProperty("--fy",gy+"px");document.body.appendChild(fl);setTimeout(()=>fl.remove(),1200);
-    tone(55,1.4,.22,"triangle",0,30);tone(880,.6,.08,"sine",.02,220);buzz([150]);
-    pullAnims.forEach(a=>a.cancel());if(boardAnim)boardAnim.cancel();
-    veil.remove();skip.remove();
-    for(let r=0;r<4;r++)for(let c=0;c<4;c++){const t=grid[r][c];if(t){const d=els.get(t.id);if(d)d.remove();els.delete(t.id)}grid[r][c]=null}
-    if(!reduced)bigBang(hx,hy);
+    timers.forEach(id=>{clearTimeout(id);clearInterval(id)});
+    skip.remove();
     setScore(score+bonus);
-    const cap=document.createElement("div");cap.className="bh-caption";cap.innerHTML="Big Bang !<small>+"+bonus+" de masse</small>";board.appendChild(cap);setTimeout(()=>cap.remove(),2300);
-    setTimeout(()=>{
-      spawn();finish();
-      if(!wonShown){wonShown=true;setTimeout(()=>showOverlay("Trou noir créé",FACTS[MAX]+" Il a tout avalé, puis un nouvel univers est né : continue pour battre ton record.","Continuer","won"),900)}
-    },fast?300:700);
+    const end=document.createElement("div");end.className="bh-end";end.setAttribute("role","dialog");end.setAttribute("aria-labelledby","bhTitle");
+    end.innerHTML=`<div class="bh-msg"><p class="eyebrow">Fin du cycle cosmique</p><h2 id="bhTitle">Félicitations !</h2>
+      <p>Tu as créé un trou noir. Il a tout avalé, jusqu'au dernier grain de poussière.</p>
+      <p class="mass">Masse finale<b>${score}</b>${score>=best?"Nouveau record !":"Record : "+best}</p>
+      <button class="btn" type="button">Retour au menu</button></div>`;
+    document.body.appendChild(end);
+    end.addEventListener("pointerdown",e=>e.stopPropagation());
+    requestAnimationFrame(()=>end.classList.add("on"));
+    const msg=end.querySelector(".bh-msg"),btn=end.querySelector("button");
+    setTimeout(()=>{msg.classList.add("on");[0,.15,.3,.5].forEach((w,i)=>tone([523,659,784,1047][i],.5,.08,"triangle",w));btn.focus({preventScroll:true})},skipped||reduced?700:4000);
+    btn.onclick=()=>{
+      anims.forEach(a=>a.cancel());veil.remove();
+      board.style.transition="";board.style.background="";board.style.boxShadow="";
+      end.classList.remove("on");setTimeout(()=>end.remove(),600);
+      newGame();
+    };
   }
 }
 /* petits effets dédiés à la cinématique (toile de particules partagée) */
