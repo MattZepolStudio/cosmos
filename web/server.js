@@ -16,7 +16,7 @@ const PORT = Number(process.env.PORT) || 3000;
 
 const CONFIG = {
   boardSize: 30,
-  maxScore: 2_000_000,
+  maxScore: 50_000_000,
   cooldownMs: 2000,
   pseudoMin: 3,
   pseudoMax: 16,
@@ -120,7 +120,7 @@ function getBoard(key, body) {
     .filter(([, p]) => p.best > 0)
     .sort((a, b) => b[1].best - a[1].best)
     .slice(0, CONFIG.boardSize)
-    .map(([id, p], i) => ({ id: id === key ? "me" : "a" + (i + 1), name: p.pseudo, best: p.best, top: p.top }));
+    .map(([id, p], i) => ({ id: id === key ? "me" : "a" + (i + 1), name: p.pseudo, best: p.best, top: p.top, uni: p.uni || 1 }));
   const dayRows = data.daily[day] || {};
   const daily = Object.entries(dayRows)
     .filter(([id]) => data.players[id] && data.players[id].pseudo)
@@ -154,7 +154,7 @@ function submitScore(key, body) {
   if (tooSoon(key, "score")) return { ok: false, error: "cooldown" };
   const p = data.players[key] || (data.players[key] = { pseudo: null, best: 0, top: 1 });
   const best = clampInt(body.best, 0, CONFIG.maxScore);
-  if (best > p.best) { p.best = best; p.top = clampInt(body.top, 1, 12); }
+  if (best > p.best) { p.best = best; p.top = clampInt(body.top, 1, 12); p.uni = clampInt(body.uni, 1, 999); }
   p.updatedAt = Date.now();
   if (validDay(body.dayKey)) {
     const dayBest = clampInt(body.dayBest, 0, CONFIG.maxScore);

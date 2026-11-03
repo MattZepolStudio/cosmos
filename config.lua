@@ -20,7 +20,7 @@ Config.PseudoMaxLength = 16
 Config.BannedWords = { "admin", "staff", "modo" }
 
 -- Garde-fous contre les scores truqués (le score est calculé côté téléphone)
-Config.MaxScore = 2000000      -- au-delà, le score est refusé
+Config.MaxScore = 50000000     -- au-delà, le score est refusé (les univers multiplient les points)
 Config.SubmitCooldown = 2      -- secondes minimum entre deux envois d'un même joueur
 
 -- Nom enregistré avec le score (utile pour les admins en base de données).

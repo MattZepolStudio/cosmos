@@ -7,6 +7,7 @@ MySQL.ready(function()
             pseudo VARCHAR(16) NULL,
             best INT UNSIGNED NOT NULL DEFAULT 0,
             top TINYINT UNSIGNED NOT NULL DEFAULT 1,
+            uni SMALLINT UNSIGNED NOT NULL DEFAULT 1,
             updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             UNIQUE KEY uniq_pseudo (pseudo),
             INDEX idx_best (best)
@@ -23,6 +24,13 @@ MySQL.ready(function()
             INDEX idx_day_best (day, best)
         )
     ]])
+    -- Ancienne installation sans la colonne de l'univers atteint : on l'ajoute
+    local hasUni = MySQL.scalar.await([[
+        SELECT COUNT(*) FROM information_schema.columns
+        WHERE table_schema = DATABASE() AND table_name = 'cosmos_scores' AND column_name = 'uni']])
+    if hasUni == 0 then
+        MySQL.query.await("ALTER TABLE cosmos_scores ADD COLUMN uni SMALLINT UNSIGNED NOT NULL DEFAULT 1 AFTER top")
+    end
     -- Ancienne installation sans l'unicité des pseudos : on l'ajoute
     local idx = MySQL.scalar.await([[
         SELECT COUNT(*) FROM information_schema.statistics
@@ -90,7 +98,7 @@ RegisterNetEvent("cosmos:getBoard", function(id, data)
     local day = data and validDay(data.dayKey) and data.dayKey or os.date("%Y-%m-%d")
 
     local all = MySQL.query.await(([[
-        SELECT s.player_key AS id, %s AS name, s.best, s.top FROM cosmos_scores s
+        SELECT s.player_key AS id, %s AS name, s.best, s.top, s.uni FROM cosmos_scores s
         WHERE s.best > 0 %s ORDER BY s.best DESC LIMIT ?]]):format(nameExpr, listFilter),
         { Config.BoardSize }) or {}
     local daily = MySQL.query.await(([[
@@ -151,15 +159,17 @@ RegisterNetEvent("cosmos:submitScore", function(id, data)
     local name = (Config.GetDisplayName(src) or "Joueur"):sub(1, 40)
     local best = clampInt(data.best, 0, Config.MaxScore)
     local top = clampInt(data.top, 1, 12)
+    local uni = clampInt(data.uni, 1, 999)
 
     -- Score général : on garde le meilleur. Le pseudo n'est jamais modifié ici.
     MySQL.query.await([[
-        INSERT INTO cosmos_scores (player_key, name, best, top) VALUES (?, ?, ?, ?)
+        INSERT INTO cosmos_scores (player_key, name, best, top, uni) VALUES (?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
             name = VALUES(name),
             top = IF(VALUES(best) > best, VALUES(top), top),
+            uni = IF(VALUES(best) > best, VALUES(uni), uni),
             best = GREATEST(best, VALUES(best))]],
-        { key, name, best, top })
+        { key, name, best, top, uni })
 
     -- Défi du jour
     if validDay(data.dayKey) then

@@ -185,6 +185,9 @@ button{font:inherit;cursor:pointer}
 .bh-msg p{margin:0 0 6px;color:#c3c9f0;line-height:1.45;font-size:.95rem}
 .bh-msg .mass{margin:16px 0 22px;font-family:var(--mono);color:var(--ink)}
 .bh-msg .mass b{display:block;font-size:2.2rem;color:var(--flare);font-variant-numeric:tabular-nums}
+.uni{flex:none;margin:0 auto 0 6px;font-family:var(--mono);font-size:.64rem;padding:2px 7px!important;font-weight:700;color:#2a1400;background:var(--flare);border-radius:999px;padding:3px 8px;white-space:nowrap;box-shadow:0 0 12px #ffb35c66}
+.bh-btns{display:flex;flex-direction:column;gap:10px;align-items:center}
+.bh-btns .btn{min-width:220px}
 .bh-core .face{background:transparent!important;transition:background .6s}
 .bh-core .name,.bh-core .face::before{opacity:0;transition:opacity .4s}
 .bh-skip{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:41;font-family:var(--mono);font-size:.68rem;color:#ffffff80;pointer-events:none}
@@ -262,6 +265,7 @@ button{font:inherit;cursor:pointer}
       <svg class="orbit" viewBox="0 0 200 60" preserveAspectRatio="none" aria-hidden="true"><ellipse cx="100" cy="30" rx="96" ry="15" transform="rotate(5 100 30)"/></svg>
       <span class="lt" aria-hidden="true">C</span><span class="pl sun" data-l="10" aria-hidden="true">o</span><span class="lt" aria-hidden="true">SM</span><span class="pl ringed" data-l="8" aria-hidden="true">o</span><span class="lt" aria-hidden="true">S</span>
     </h1>
+    <span class="uni" id="uniBadge" hidden></span>
     <div class="tools">
       <button class="icon" id="soundBtn" type="button" aria-label="Couper le son" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path class="wave" d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/><path class="mute" d="M16 9l5 6M21 9l-5 6"/></svg></button>
       <button class="icon" id="undoBtn" type="button" aria-label="Annuler le dernier coup"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg><span class="badge" id="undoCount">1</span></button>
@@ -404,6 +408,10 @@ const FACTS=["Le noyau d'une comète est une boule de glace et de poussière de 
 "Près d'un trou noir, la gravité est si forte que même la lumière ne peut plus s'échapper."];
 const tilesEl=document.getElementById("tiles"),scoreEl=document.getElementById("score"),bestEl=document.getElementById("best"),
       overlay=document.getElementById("overlay"),board=document.getElementById("board"),chainEl=document.getElementById("chain");
+let universe=1;
+const uniMult=()=>1+.5*(universe-1);
+const fmtMult=m=>String(Math.round(m*10)/10).replace(".",",");
+function renderUni(){const b=document.getElementById("uniBadge");if(!b)return;b.hidden=universe<2;b.textContent="U"+universe+" ×"+fmtMult(uniMult());b.title="Univers "+universe+" : chaque fusion rapporte ×"+fmtMult(uniMult());b.setAttribute("aria-label",b.title)}
 let mode="free",rand=Math.random,pendingMode="free",movesCount=0,dayBest=0,dayTop=1,dayDone=[];
 let grid,score=0,best=0,seen,nextId=1,busy=false,over=false,wonShown=false;
 const els=new Map();
@@ -552,9 +560,10 @@ function blackHoleFinale(holes){
   const victims=[];
   for(let r=0;r<4;r++)for(let c=0;c<4;c++){const t=grid[r][c];if(!t||t===h)continue;swallowed+=t.comet?64:2**t.lvl;victims.push(t)}
   swallowed+=4096*(holes.length-1);
-  const bonus=4096+swallowed;
-  over=true;clearSave();
-  const T=reduced?0:1;
+  const bonus=Math.round((4096+swallowed)*uniMult());
+  over=true;if(mode==="daily")clearSave();
+  const K=universe>1?.45:1; /* à partir du 2e univers, la cinématique est plus courte */
+  const T=reduced?0:K;
   let ended=false;
   const timers=[],anims=[];const later=(f,ms)=>timers.push(setTimeout(f,ms*T));
   const br=board.getBoundingClientRect(),gx=br.left+hx,gy=br.top+hy;
@@ -567,8 +576,8 @@ function blackHoleFinale(holes){
   /* le trou noir grossit en tournant */
   const hb=holeEl&&holeEl.querySelector(".body");
   if(hb&&!reduced){holeEl.style.zIndex=5;holeEl.classList.add("bh-core");
-    anims.push(hb.animate([{transform:"translateY(0) scale(1) rotate(0deg)"},{transform:"translateY(0) scale(1.8) rotate(-40deg)",offset:.3},{transform:"translateY(0) scale(3.2) rotate(-300deg)"}],{duration:4200,easing:"ease-in-out",fill:"forwards"}))}
-  tone(70,4.6,.16,"sawtooth",0,28);tone(110,4,.06,"sine",.3,55);buzz([40,80,40,80,60,60,120]);
+    anims.push(hb.animate([{transform:"translateY(0) scale(1) rotate(0deg)"},{transform:"translateY(0) scale(1.8) rotate(-40deg)",offset:.3},{transform:"translateY(0) scale(3.2) rotate(-300deg)"}],{duration:4200*K,easing:"ease-in-out",fill:"forwards"}))}
+  tone(70,4.6*K,.16,"sawtooth",0,28);tone(110,4*K,.06,"sine",.3,55);buzz([40,80,40,80,60,60,120]);
 
   /* spirale d'un élément vers le trou (coordonnées écran) */
   function spiral(el,delay,dur,turns){
@@ -582,16 +591,16 @@ function blackHoleFinale(holes){
     /* 1. les astres, les plus proches d'abord */
     victims.sort((a,b)=>Math.hypot(a.r-h.r,a.c-h.c)-Math.hypot(b.r-h.r,b.c-h.c));
     victims.forEach((t,i)=>{const el=els.get(t.id);if(!el)return;el.style.zIndex=4;
-      const d=600+i*(1500/Math.max(1,victims.length));spiral(el.querySelector(".face"),d,1400,2.4);
+      const d=600+i*(1500/Math.max(1,victims.length));spiral(el.querySelector(".face"),d*K,1400*K,2.4);
       later(()=>{impactAt(hx,hy,t.comet?0:t.lvl);tone(300+i*40,.12,.05,"sine",0,90)},d+1350)});
     /* 2. puis tout le reste du jeu : cases, logo, scores, boutons */
     later(()=>{board.style.transition="background .8s, box-shadow .8s";board.style.background="transparent";board.style.boxShadow="none"},2300);
-    spiral(board.querySelector(".cells"),2300,1500,1.6);
+    spiral(board.querySelector(".cells"),2300*K,1500*K,1.6);
     const uiParts=[...document.querySelectorAll("#app > header, #app > .modes, #app > .row")];
-    uiParts.forEach((el,i)=>spiral(el,2500+i*220,1500,2));
-    let n=0;const stream=setInterval(()=>{if(++n>44){clearInterval(stream);return}inflow(hx,hy)},90);timers.push(stream);
+    uiParts.forEach((el,i)=>spiral(el,(2500+i*220)*K,1500*K,2));
+    let n=0;const stream=setInterval(()=>{if(++n>44*K){clearInterval(stream);return}inflow(hx,hy)},90);timers.push(stream);
     /* 3. le trou noir se referme sur un point */
-    later(()=>{if(hb){anims.push(hb.animate([{transform:"translateY(0) scale(3.2) rotate(-300deg)"},{transform:"translateY(0) scale(3.6) rotate(-340deg)",offset:.3},{transform:"translateY(0) scale(0) rotate(-720deg)"}],{duration:700,easing:"ease-in",fill:"forwards"}))}
+    later(()=>{if(hb){anims.push(hb.animate([{transform:"translateY(0) scale(3.2) rotate(-300deg)"},{transform:"translateY(0) scale(3.6) rotate(-340deg)",offset:.3},{transform:"translateY(0) scale(0) rotate(-720deg)"}],{duration:700*K,easing:"ease-in",fill:"forwards"}))}
       tone(55,.7,.2,"triangle",0,25);buzz([200])},4300);
   }
   later(()=>goBlack(false),reduced?0:5000);
@@ -605,23 +614,40 @@ function blackHoleFinale(holes){
     timers.forEach(id=>{clearTimeout(id);clearInterval(id)});
     skip.remove();
     setScore(score+bonus);
+    const free=mode!=="daily",next=universe+1,nextMult=1+.5*(next-1);
+    if(free){try{localStorage.setItem(saveKey("free"),JSON.stringify({v:1,tiles:[],score,universe:next,pendingUniverse:true,undos}))}catch(e){}}
     const end=document.createElement("div");end.className="bh-end";end.setAttribute("role","dialog");end.setAttribute("aria-labelledby","bhTitle");
-    end.innerHTML=`<div class="bh-msg"><p class="eyebrow">Fin du cycle cosmique</p><h2 id="bhTitle">Félicitations !</h2>
+    end.innerHTML=`<div class="bh-msg"><p class="eyebrow">${universe>1?"Fin de l'univers "+universe:"Fin du cycle cosmique"}</p><h2 id="bhTitle">Félicitations !</h2>
       <p>Tu as créé un trou noir. Il a tout avalé, jusqu'au dernier grain de poussière.</p>
-      <p class="mass">Masse finale<b>${score}</b>${score>=best?"Nouveau record !":"Record : "+best}</p>
-      <button class="btn" type="button">Retour au menu</button></div>`;
+      <p class="mass">Masse totale<b>${score}</b>${score>=best?"Nouveau record !":"Record : "+best}</p>
+      ${free?`<p>Ta masse est conservée. Dans l'univers ${next}, chaque fusion rapporte ×${fmtMult(nextMult)}.</p>`:`<p>Le défi du jour s'arrête au trou noir : tout le monde est à égalité.</p>`}
+      <div class="bh-btns">${free?`<button class="btn" type="button" data-a="next">Continuer · Univers ${next}</button><button class="btn ghost" type="button" data-a="menu">Retour au menu</button>`:`<button class="btn" type="button" data-a="menu">Retour au menu</button>`}</div></div>`;
     document.body.appendChild(end);
     end.addEventListener("pointerdown",e=>e.stopPropagation());
     requestAnimationFrame(()=>end.classList.add("on"));
-    const msg=end.querySelector(".bh-msg"),btn=end.querySelector("button");
-    setTimeout(()=>{msg.classList.add("on");[0,.15,.3,.5].forEach((w,i)=>tone([523,659,784,1047][i],.5,.08,"triangle",w));btn.focus({preventScroll:true})},skipped||reduced?700:4000);
-    btn.onclick=()=>{
+    const msg=end.querySelector(".bh-msg"),first=end.querySelector("button");
+    const wait=skipped||reduced?700:(universe>1?1300:4000);
+    setTimeout(()=>{msg.classList.add("on");[0,.15,.3,.5].forEach((w,i)=>tone([523,659,784,1047][i],.5,.08,"triangle",w));first.focus({preventScroll:true})},wait);
+    function cleanup(){
       anims.forEach(a=>a.cancel());veil.remove();
       board.style.transition="";board.style.background="";board.style.boxShadow="";
       end.classList.remove("on");setTimeout(()=>end.remove(),600);
-      newGame();
-    };
+    }
+    end.querySelectorAll("button").forEach(btn=>btn.onclick=()=>{
+      cleanup();
+      if(btn.dataset.a==="next")nextUniverse(next);else newGame();
+    });
   }
+}
+/* Nouvel univers : plateau vide, masse conservée, points multipliés */
+function nextUniverse(n){
+  universe=n;renderUni();
+  tilesEl.innerHTML="";els.clear();over=false;busy=false;overlay.hidden=true;prev=null;
+  grid=[[null,null,null,null],[null,null,null,null],[null,null,null,null],[null,null,null,null]];
+  const W=board.clientWidth;
+  if(!reduced){bigBang(W/2,W/2);tone(55,1.2,.2,"triangle",0,30);tone(880,.6,.07,"sine",.05,220);buzz([120])}
+  const cap=document.createElement("div");cap.className="bh-caption";cap.innerHTML="Univers "+n+"<small>chaque fusion ×"+fmtMult(uniMult())+"</small>";board.appendChild(cap);setTimeout(()=>cap.remove(),2300);
+  setTimeout(()=>{spawn();spawn();syncUndo();saveGame()},reduced?0:500);
 }
 /* petits effets dédiés à la cinématique (toile de particules partagée) */
 function boardToFx(x,y){const W=board.clientWidth;return[x+W*.2,y+W*.2]}
@@ -641,7 +667,7 @@ function shake(big){board.classList.remove("shake","shake-big");void board.offse
 function setScore(n){
   if(n>score){scoreEl.classList.remove("bump");void scoreEl.offsetWidth;scoreEl.classList.add("bump")}
   score=n;scoreEl.textContent=score;
-  if(score>best){best=score;recordTop=Math.max(topLvl,1);try{localStorage.setItem("orbite-best",best);localStorage.setItem("orbite-top",recordTop)}catch(e){}if(typeof schedulePush==="function")schedulePush()}
+  if(score>best){best=score;recordTop=Math.max(topLvl,1);recordUni=universe;try{localStorage.setItem("orbite-best",best);localStorage.setItem("orbite-top",recordTop);localStorage.setItem("orbite-uni",recordUni)}catch(e){}if(typeof schedulePush==="function")schedulePush()}
   if(mode==="daily"&&score>dayBest){dayBest=score;dayTop=Math.max(topLvl,1);saveDay();if(typeof schedulePush==="function")schedulePush()}
   bestEl.textContent=mode==="daily"?dayBest:best;
 }
@@ -719,9 +745,9 @@ function move(dir){
     for(const t of born){
       const viaComet=!!t.cometUsed;
       if(t.cometUsed){delete t.cometUsed;cometUsedThisMove=true;if(mode==="free"&&undos<3){undos++;syncUndo();setTimeout(()=>toast("Comète utilisée : +1 annulation"),200)}}
-      delete t.srcs;delete t.fresh;mk(t,t.lvl>=9&&t.lvl<MAX?"pop star":"pop");burst(t,"+"+2**t.lvl);impact(t,t.lvl,viaComet);top=Math.max(top,t.lvl);topLvl=Math.max(topLvl,t.lvl);discover(t.lvl)}
+      delete t.srcs;delete t.fresh;mk(t,t.lvl>=9&&t.lvl<MAX?"pop star":"pop");burst(t,"+"+Math.round(2**t.lvl*uniMult()));impact(t,t.lvl,viaComet);top=Math.max(top,t.lvl);topLvl=Math.max(topLvl,t.lvl);discover(t.lvl)}
     if(top){tone(196*Math.pow(2,top/4),.16,.11,"sine",0,262*Math.pow(2,top/4));buzz(top>=8?30:12);if(top>=8&&top<MAX)shake(false)}
-    setScore(score+gain);
+    setScore(score+Math.round(gain*uniMult()));
     if(mode==="daily")checkMissions({merges:born.length,comet:cometUsedThisMove});
     const holes=born.filter(t=>t.lvl===MAX);
     if(holes.length){
@@ -782,8 +808,8 @@ addEventListener("keydown",e=>{if(e.key==="Escape"){if(!card.hidden)closeCard();
 
 /* --- classement partagé (base de données de l'artefact) --- */
 let rankTab="daily",dayRows=[],remoteDay=0;
-let db=null,who=null,myId=null,rows=[],remoteBest=0,canPost=true,rankState="loading",topLvl=1,recordTop=1,pushTimer=0;
-try{recordTop=+localStorage.getItem("orbite-top")||1}catch(e){}
+let db=null,who=null,myId=null,rows=[],remoteBest=0,canPost=true,rankState="loading",topLvl=1,recordTop=1,recordUni=1,pushTimer=0;
+try{recordTop=+localStorage.getItem("orbite-top")||1;recordUni=+localStorage.getItem("orbite-uni")||1}catch(e){}
 /* Le pseudo est géré par le serveur : c'est celui que le joueur a saisi, rien d'autre. */
 let pseudo="",editingPseudo=false,requirePseudo=true;
 const ranksEl=document.getElementById("ranks"),rankNote=document.getElementById("rankNote"),pseudoForm=document.getElementById("pseudoForm"),pseudoIn=document.getElementById("pseudo");
@@ -820,11 +846,12 @@ async function renderRank(){
   shown.forEach((r,i)=>{
     const li=document.createElement("li");if(r.id===myId)li.className="me";
     const pos=document.createElement("span");pos.className="pos";pos.textContent=i+1;
-    const art=miniSprite(Math.min(MAX,Math.max(1,+r.top||1)));
+    const uniRow=rankTab!=="daily"&&+r.uni>1;
+    const art=miniSprite(uniRow?MAX:Math.min(MAX,Math.max(1,+r.top||1)));
     const nm=document.createElement("span");nm.className="who";
     const name=(typeof r.name==="string"&&r.name.trim())||"Joueur";
     nm.textContent=r.id===myId?name+" (toi)":name;
-    const sm=document.createElement("small");sm.textContent=NAMES[Math.min(MAX,Math.max(1,+r.top||1))]+(rankTab==="daily"&&typeof r.done==="number"?" · missions "+r.done+"/3":"");nm.appendChild(sm);
+    const sm=document.createElement("small");sm.textContent=(uniRow?"Univers "+r.uni:NAMES[Math.min(MAX,Math.max(1,+r.top||1))])+(rankTab==="daily"&&typeof r.done==="number"?" · missions "+r.done+"/3":"");nm.appendChild(sm);
     const pts=document.createElement("span");pts.className="pts";pts.textContent=Math.floor(+r.best||0);
     li.append(pos,art,nm,pts);ranksEl.appendChild(li);
   });
@@ -832,7 +859,7 @@ async function renderRank(){
 async function pushScore(force){
   if(!canPost)return;
   if(!force&&best<=remoteBest&&dayBest<=remoteDay&&dayDone.length<=remoteDone)return;
-  const r=await nui("submitScore",{best,top:recordTop,dayKey,dayBest,dayTop,done:dayDone.length});
+  const r=await nui("submitScore",{best,top:recordTop,uni:recordUni,dayKey,dayBest,dayTop,done:dayDone.length});
   if(r&&r.ok){remoteBest=Math.max(remoteBest,best);remoteDay=Math.max(remoteDay,dayBest);remoteDone=dayDone.length;refreshBoard()}
   else if(r&&r.error==="denied"){canPost=false;renderRank()}
 }
@@ -967,13 +994,16 @@ function makeRand(m,skip){
 }
 function saveGame(){
   if(over||!grid)return;
-  try{localStorage.setItem(saveKey(mode),JSON.stringify({v:1,tiles:snapshot().tiles,score,undos,prev,wonShown,movesCount,topLvl,randCalls}));localStorage.setItem("cosmos-last-mode",mode)}catch(e){}
+  try{localStorage.setItem(saveKey(mode),JSON.stringify({v:1,tiles:snapshot().tiles,score,undos,prev,wonShown,movesCount,topLvl,randCalls,universe}));localStorage.setItem("cosmos-last-mode",mode)}catch(e){}
 }
 function clearSave(m){try{localStorage.removeItem(saveKey(m||mode))}catch(e){}}
-function loadSave(m){try{const s=JSON.parse(localStorage.getItem(saveKey(m))||"null");return s&&Array.isArray(s.tiles)&&s.tiles.length?s:null}catch(e){return null}}
+function loadSave(m){try{const s=JSON.parse(localStorage.getItem(saveKey(m))||"null");return s&&Array.isArray(s.tiles)&&(s.tiles.length||s.pendingUniverse)?s:null}catch(e){return null}}
 function resumeOrNew(m){
   const s=loadSave(m);if(!s){newGame();return}
-  restore(s);
+  if(s.pendingUniverse){ /* fermé sur l'écran de félicitations : on repart dans l'univers suivant */
+    restore({tiles:[],score:s.score});if(typeof s.undos==="number")undos=s.undos;rand=makeRand(m,0);
+    nextUniverse(s.universe||2);return}
+  restore(s);universe=m==="daily"?1:(s.universe||1);renderUni();
   movesCount=s.movesCount||0;topLvl=Math.max(topLvl,s.topLvl||1);prev=s.prev||null;
   if(typeof s.undos==="number")undos=s.undos;
   rand=makeRand(m,s.randCalls||0);syncUndo();
@@ -986,7 +1016,7 @@ function newGame(){
   tilesEl.innerHTML="";els.clear();over=false;busy=false;wonShown=false;overlay.hidden=true;
   grid=[[null,null,null,null],[null,null,null,null],[null,null,null,null],[null,null,null,null]];
   rand=makeRand(mode,0);movesCount=0;
-  score=0;topLvl=1;setScore(0);spawn();spawn();undos=mode==="daily"?0:1;prev=null;syncUndo();
+  score=0;topLvl=1;universe=1;renderUni();setScore(0);spawn();spawn();undos=mode==="daily"?0:1;prev=null;syncUndo();
   saveGame();
 }
 function restore(s){
