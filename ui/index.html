@@ -189,6 +189,12 @@ button{font:inherit;cursor:pointer}
 .bh-caption{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:7;pointer-events:none;text-align:center;font-weight:800;color:#fff;text-shadow:0 0 18px #ff9a3a,0 2px 6px #000;font-size:1.5rem;opacity:0;animation:bhcap 2.2s ease-out forwards;white-space:nowrap}
 .bh-caption small{display:block;font-family:var(--mono);font-size:.8rem;letter-spacing:.14em;color:#ffd59a;margin-top:6px}
 @keyframes bhcap{0%{opacity:0;transform:translate(-50%,-50%) scale(.6)}20%{opacity:1;transform:translate(-50%,-50%) scale(1.05)}75%{opacity:1}100%{opacity:0;transform:translate(-50%,-60%) scale(1)}}
+.bh-white{position:fixed;inset:0;z-index:45;background:#fff;pointer-events:none;animation:bhwhite .9s ease-out forwards}
+@keyframes bhwhite{from{opacity:0}to{opacity:1}}
+.bh-warp{position:fixed;inset:0;width:100%;height:100%;z-index:44;pointer-events:none;background:#000}
+.bh-cracks{position:fixed;inset:0;width:100%;height:100%;z-index:44;pointer-events:none;overflow:visible}
+.bh-cracks path{fill:none;stroke:#e8f0ff;stroke-width:1.6;stroke-linejoin:round;filter:drop-shadow(0 0 3px #9fc4ff)}
+.bh-cracks path.ring{stroke-width:1;stroke:#cfe0ffb0}
 .bh-end{position:fixed;inset:0;z-index:50;background:#000;opacity:0;transition:opacity .6s ease;display:grid;place-items:center;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px))}
 .bh-end.on{opacity:1}
 .bh-msg{text-align:center;max-width:320px;opacity:0;transform:scale(.92);transition:opacity 1s ease,transform 1s cubic-bezier(.2,1.3,.4,1)}
@@ -627,7 +633,7 @@ function blackHoleFinale(holes){
   swallowed+=4096*(holes.length-1);
   const bonus=Math.round((4096+swallowed)*uniMult());
   over=true;if(mode==="daily")clearSave();
-  const K=universe>1?.45:1; /* à partir du 2e univers, la cinématique est plus courte */
+  const K=1; /* chaque univers a désormais sa propre cinématique, à vitesse normale */
   const T=reduced?0:K;
   let ended=false;
   const timers=[],anims=[];const later=(f,ms)=>timers.push(setTimeout(f,ms*T));
@@ -638,11 +644,123 @@ function blackHoleFinale(holes){
   requestAnimationFrame(()=>veil.classList.add("on"));
   const skip=document.createElement("div");skip.className="bh-skip";skip.textContent="Touche pour passer";if(!reduced)document.body.appendChild(skip);
 
+  const variant=universe<2?"suck":["white","spag","worm","shatter"][(universe-2)%4];
+  const extras=[];
+
+  /* ===== cinématiques des univers suivants : une surprise différente à chaque fin d'univers ===== */
+  function runVariant(v){
+    const W=innerWidth,H=innerHeight;
+    const tileFaces=victims.map(t=>els.get(t.id)).filter(Boolean).map(el=>{el.style.zIndex=4;return el.querySelector(".face")});
+    const uiParts=[...document.querySelectorAll("#app > header, #app > .modes, #app > .row")];
+    const cells=board.querySelector(".cells");
+    const centerOf=el=>{const r=el.getBoundingClientRect();return[r.left+r.width/2,r.top+r.height/2]};
+    const add=el=>{document.body.appendChild(el);extras.push(el);return el};
+    const anim=(el,kf,o)=>{anims.push(el.animate(kf,{fill:"forwards",...o}))};
+
+    if(v==="white"){
+      /* TROU BLANC : le trou noir s'inverse et expulse tout dans une lumière aveuglante */
+      if(hb){holeEl.style.zIndex=5;holeEl.classList.add("bh-core");
+        anim(hb,[{transform:"translateY(0) scale(1)",filter:"none"},{transform:"translateY(0) scale(1.3)",filter:"invert(1) brightness(1.4)",offset:.35},{transform:"translateY(0) scale(2.6)",filter:"invert(1) brightness(3) blur(1px)"}],{duration:1700,easing:"ease-in"})}
+      tone(180,1.6,.1,"sine",0,1400);tone(90,1.6,.08,"triangle",.1,700);
+      /* tension : tout tremble en étant légèrement attiré */
+      tileFaces.concat(uiParts).forEach(el=>anim(el,[{transform:"translate(0,0)"},{transform:"translate(1.5px,-1px)",offset:.2},{transform:"translate(-2px,1px)",offset:.4},{transform:"translate(2px,2px)",offset:.6},{transform:"translate(-1px,-2px)",offset:.8},{transform:"translate(0,0)"}],{duration:1500,iterations:1}));
+      later(()=>{
+        const fl=add(document.createElement("div"));fl.className="bh-flash";fl.style.setProperty("--fx",gx+"px");fl.style.setProperty("--fy",gy+"px");
+        bigBang(hx,hy);tone(60,1.4,.24,"sawtooth",0,30);tone(1600,.8,.06,"sine",0,200);buzz([180]);
+        const blow=(el,i,dist,dur)=>{const [cx,cy]=centerOf(el);let dx=cx-gx,dy=cy-gy;const m=Math.hypot(dx,dy)||1;dx/=m;dy/=m;
+          anim(el,[{transform:"translate(0,0) rotate(0) scale(1)",opacity:1,filter:"brightness(1)"},{transform:`translate(${dx*dist}px,${dy*dist}px) rotate(${(Math.random()-.5)*540}deg) scale(.6)`,opacity:0,filter:"brightness(3)"}],{duration:dur,delay:i*25,easing:"cubic-bezier(.1,.7,.3,1)"})};
+        tileFaces.forEach((f,i)=>blow(f,i,Math.max(W,H),900));
+        uiParts.forEach((el,i)=>blow(el,i+3,Math.max(W,H)*.9,1000));
+        anim(cells,[{transform:"scale(1)",opacity:1},{transform:"scale(1.8)",opacity:0}],{duration:900,easing:"ease-out"});
+        board.style.transition="background .5s, box-shadow .5s";board.style.background="transparent";board.style.boxShadow="none";
+        if(hb)anim(hb,[{transform:"translateY(0) scale(2.6)",filter:"invert(1) brightness(3)",opacity:1},{transform:"translateY(0) scale(9)",filter:"invert(1) brightness(5)",opacity:0}],{duration:900,easing:"ease-out"});
+      },1700);
+      later(()=>{const w=add(document.createElement("div"));w.className="bh-white"},2500);
+      return 3900;
+    }
+
+    if(v==="spag"){
+      /* SPAGHETTIFICATION : chaque astre s'étire en long filament avant d'être avalé, l'espace ondule */
+      if(hb){holeEl.style.zIndex=5;holeEl.classList.add("bh-core");
+        anim(hb,[{transform:"translateY(0) scale(1) rotate(0)"},{transform:"translateY(0) scale(2.6) rotate(-360deg)"}],{duration:4300,easing:"ease-in-out"})}
+      tone(70,4.4,.14,"sawtooth",0,30);
+      /* ondes gravitationnelles */
+      anim(board,[0,1,2,3,4,5,6,7,8].map(i=>({transform:i%2?`scale(${1+.02*(i%4?1:-1)},${1-.02*(i%4?1:-1)}) skewX(${i%4?1.5:-1.5}deg)`:"none"})),{duration:3600,delay:300,easing:"ease-in-out"});
+      const stretch=(el,delay,dur,sx)=>{const [cx,cy]=centerOf(el),dx=gx-cx,dy=gy-cy,a=Math.atan2(dy,dx)*180/Math.PI;
+        const kf=[];for(let k=0;k<=10;k++){const p=k/10,e=p*p;
+          kf.push({transform:`translate(${(dx*e).toFixed(1)}px,${(dy*e).toFixed(1)}px) rotate(${a}deg) scale(${(1+sx*e).toFixed(2)},${Math.max(.04,1-.93*e).toFixed(3)}) rotate(${-a}deg)`,filter:`brightness(${(1+e*1.5).toFixed(2)})`,opacity:k===10?0:1})}
+        anim(el,kf,{duration:dur,delay,easing:"cubic-bezier(.5,0,.9,.5)"})};
+      victims.slice().sort((a,b)=>Math.hypot(a.r-h.r,a.c-h.c)-Math.hypot(b.r-h.r,b.c-h.c)).forEach((t,i)=>{const el=els.get(t.id);if(!el)return;
+        const d=500+i*(1700/Math.max(1,victims.length));stretch(el.querySelector(".face"),d,1500,7);later(()=>tone(500-i*15,.25,.04,"sine",0,120),d+1300)});
+      stretch(cells,2500,1500,3);
+      uiParts.forEach((el,i)=>stretch(el,2700+i*200,1500,2.5));
+      later(()=>{board.style.transition="background .8s, box-shadow .8s";board.style.background="transparent";board.style.boxShadow="none"},2500);
+      let n=0;const stream=setInterval(()=>{if(++n>48||ended){clearInterval(stream);return}inflow(hx,hy)},90);timers.push(stream);
+      later(()=>{if(hb)anim(hb,[{transform:"translateY(0) scale(2.6) rotate(-360deg)"},{transform:"translateY(0) scale(0) rotate(-900deg)"}],{duration:600,easing:"ease-in"});tone(50,.6,.2,"triangle",0,25);buzz([150])},4400);
+      return 5100;
+    }
+
+    if(v==="worm"){
+      /* TROU DE VER : le jeu se plie et disparaît, puis plongée dans un tunnel d'étoiles */
+      tone(90,1.2,.12,"sawtooth",0,40);
+      anim(board,[{transform:"perspective(700px) rotateX(0) scale(1)",opacity:1},{transform:"perspective(700px) rotateX(78deg) scale(.15)",opacity:0}],{duration:1300,delay:300,easing:"cubic-bezier(.6,0,.9,.5)"});
+      uiParts.forEach((el,i)=>{const [cx]=centerOf(el);anim(el,[{transform:"perspective(600px) rotateY(0) scale(1)",opacity:1},{transform:`perspective(600px) rotateY(${cx<W/2?-85:85}deg) scale(.3)`,opacity:0}],{duration:1100,delay:400+i*150,easing:"ease-in"})});
+      later(()=>{
+        const c=add(document.createElement("canvas"));c.className="bh-warp";const dpr=1;c.width=W;c.height=H;
+        const x=c.getContext("2d");x.scale(dpr,dpr);
+        const nextSky=SKIES[((universe+1)-2)%(SKIES.length-1)+1];
+        const stars=Array.from({length:220},()=>({a:Math.random()*Math.PI*2,z:Math.random()*.9+.1}));
+        let t0=performance.now();tone(140,2.4,.1,"sine",0,900);tone(70,2.4,.08,"triangle",0,300);buzz([30,60,30,60,30,60]);
+        (function frame(now){
+          if(ended||!c.isConnected)return;
+          const t=(now-t0)/1000,speed=.25+t*t*1.2,cx=W/2,cy=H/2,R=Math.hypot(W,H)/2;
+          x.fillStyle="rgba(0,0,0,.35)";x.fillRect(0,0,W,H);
+          /* anneaux du tunnel */
+          for(let i=0;i<7;i++){const p=((t*speed*.6+i/7)%1),r=Math.pow(p,2.2)*R*1.2;
+            x.strokeStyle=nextSky;x.globalAlpha=.15+.35*p;x.lineWidth=1+p*5;x.beginPath();x.ellipse(cx,cy,r,r*.9,0,0,7);x.stroke()}
+          x.globalAlpha=1;
+          for(const s of stars){const z0=s.z;s.z-=.012*speed;if(s.z<=.02){s.z=1;s.a=Math.random()*Math.PI*2}
+            const r0=(1-z0)*R*1.1,r1=(1-s.z)*R*1.1;
+            x.strokeStyle=`rgba(${200+55*(1-s.z)|0},${220+35*(1-s.z)|0},255,${Math.min(1,.2+(1-s.z))})`;x.lineWidth=.6+(1-s.z)*2.4;
+            x.beginPath();x.moveTo(cx+Math.cos(s.a)*r0,cy+Math.sin(s.a)*r0);x.lineTo(cx+Math.cos(s.a)*r1,cy+Math.sin(s.a)*r1);x.stroke()}
+          if(t>2.2){x.fillStyle=`rgba(255,255,255,${Math.min(1,(t-2.2)*2.2)})`;x.fillRect(0,0,W,H)}
+          requestAnimationFrame(frame);
+        })(t0);
+      },1500);
+      return 4600;
+    }
+
+    if(v==="shatter"){
+      /* L'UNIVERS SE BRISE : l'écran se fissure comme du verre et les morceaux tombent dans le vide */
+      const svg=add(document.createElementNS("http://www.w3.org/2000/svg","svg"));svg.setAttribute("class","bh-cracks");svg.setAttribute("viewBox",`0 0 ${W} ${H}`);
+      const paths=[];
+      for(let i=0;i<13;i++){let a=i/13*Math.PI*2+Math.random()*.4,px=gx,py=gy,d=`M${gx.toFixed(1)} ${gy.toFixed(1)}`;const L=Math.hypot(W,H);
+        for(let s=0;s<7;s++){const step=L/7*(.6+Math.random()*.6);a+=(Math.random()-.5)*.6;px+=Math.cos(a)*step;py+=Math.sin(a)*step;d+=` L${px.toFixed(1)} ${py.toFixed(1)}`}
+        const p=document.createElementNS("http://www.w3.org/2000/svg","path");p.setAttribute("d",d);svg.appendChild(p);paths.push(p)}
+      for(let i=0;i<5;i++){const r=40+i*70+Math.random()*30;const p=document.createElementNS("http://www.w3.org/2000/svg","path");
+        let d="";for(let k=0;k<=24;k++){const a=k/24*Math.PI*2,rr=r*(.85+Math.random()*.3);d+=(k?" L":"M")+(gx+Math.cos(a)*rr).toFixed(1)+" "+(gy+Math.sin(a)*rr).toFixed(1)}
+        p.setAttribute("d",d);p.setAttribute("class","ring");svg.appendChild(p);paths.push(p)}
+      paths.forEach((p,i)=>{const len=p.getTotalLength();p.style.strokeDasharray=len;p.style.strokeDashoffset=len;
+        anim(p,[{strokeDashoffset:len},{strokeDashoffset:0}],{duration:500,delay:300+i*90,easing:"ease-out"});
+        later(()=>tone(2400-i*90,.07,.05,"square",0,1600),300+i*90)});
+      buzz([20,30,20,30,20,30,40]);
+      if(hb)anim(hb,[{transform:"translateY(0) scale(1)"},{transform:"translateY(0) scale(1.4)"}],{duration:1800,easing:"ease-out"});
+      /* les morceaux tombent un à un */
+      const pieces=tileFaces.concat(uiParts,[cells]);
+      pieces.sort(()=>Math.random()-.5).forEach((el,i)=>{const d=2000+i*110;
+        anim(el,[{transform:"translate(0,0) rotate(0)",opacity:1},{transform:`translate(${(Math.random()-.5)*30}px,-14px) rotate(${(Math.random()-.5)*8}deg)`,opacity:1,offset:.15},{transform:`translate(${(Math.random()-.5)*160}px,${H*1.1}px) rotate(${(Math.random()-.5)*160}deg)`,opacity:.9}],{duration:1300,delay:d,easing:"cubic-bezier(.5,0,.9,.6)"});
+        later(()=>tone(300+Math.random()*500,.06,.04,"square",0,120),d)});
+      later(()=>{board.style.transition="background .6s, box-shadow .6s, opacity .6s";board.style.background="transparent";board.style.boxShadow="none";if(hb)anim(hb,[{transform:"translateY(0) scale(1.4)",opacity:1},{transform:"translateY(0) scale(.2)",opacity:0}],{duration:800,easing:"ease-in"})},2000+pieces.length*110);
+      later(()=>anim(svg,[{opacity:1},{opacity:0}],{duration:900}),2600+pieces.length*110);
+      return 3800+pieces.length*110;
+    }
+  }
+
   /* le trou noir grossit en tournant */
   const hb=holeEl&&holeEl.querySelector(".body");
-  if(hb&&!reduced){holeEl.style.zIndex=5;holeEl.classList.add("bh-core");
+  if(hb&&!reduced&&variant==="suck"){holeEl.style.zIndex=5;holeEl.classList.add("bh-core");
     anims.push(hb.animate([{transform:"translateY(0) scale(1) rotate(0deg)"},{transform:"translateY(0) scale(1.8) rotate(-40deg)",offset:.3},{transform:"translateY(0) scale(3.2) rotate(-300deg)"}],{duration:4200*K,easing:"ease-in-out",fill:"forwards"}))}
-  tone(70,4.6*K,.16,"sawtooth",0,28);tone(110,4*K,.06,"sine",.3,55);buzz([40,80,40,80,60,60,120]);
+  if(variant==="suck"){tone(70,4.6*K,.16,"sawtooth",0,28);tone(110,4*K,.06,"sine",.3,55);buzz([40,80,40,80,60,60,120])}
 
   /* spirale d'un élément vers le trou (coordonnées écran) */
   function spiral(el,delay,dur,turns){
@@ -652,7 +770,9 @@ function blackHoleFinale(holes){
       kf.push({transform:`translate(${(gx+Math.cos(an)*rr-cx).toFixed(1)}px,${(gy+Math.sin(an)*rr-cy).toFixed(1)}px) rotate(${(e*turns*180).toFixed(0)}deg) scale(${(1-e*.97).toFixed(3)})`,filter:`brightness(${(1+e*1.4).toFixed(2)})`,opacity:k===N?0:1})}
     anims.push(el.animate(kf,{duration:dur,delay,easing:"cubic-bezier(.45,0,.9,.6)",fill:"forwards"}));
   }
-  if(!reduced){
+  let endAt=5000;
+  if(!reduced&&variant!=="suck")endAt=runVariant(variant);
+  else if(!reduced){
     /* 1. les astres, les plus proches d'abord */
     victims.sort((a,b)=>Math.hypot(a.r-h.r,a.c-h.c)-Math.hypot(b.r-h.r,b.c-h.c));
     victims.forEach((t,i)=>{const el=els.get(t.id);if(!el)return;el.style.zIndex=4;
@@ -668,7 +788,7 @@ function blackHoleFinale(holes){
     later(()=>{if(hb){anims.push(hb.animate([{transform:"translateY(0) scale(3.2) rotate(-300deg)"},{transform:"translateY(0) scale(3.6) rotate(-340deg)",offset:.3},{transform:"translateY(0) scale(0) rotate(-720deg)"}],{duration:700*K,easing:"ease-in",fill:"forwards"}))}
       tone(55,.7,.2,"triangle",0,25);buzz([200])},4300);
   }
-  later(()=>goBlack(false),reduced?0:5000);
+  later(()=>goBlack(false),reduced?0:endAt);
   const onSkip=e=>{e.stopPropagation();e.preventDefault();goBlack(true)};
   if(!reduced)setTimeout(()=>{if(!ended)addEventListener("pointerdown",onSkip,{capture:true,once:true})},400);
 
@@ -694,7 +814,7 @@ function blackHoleFinale(holes){
     const wait=skipped||reduced?700:(universe>1?1300:4000);
     setTimeout(()=>{msg.classList.add("on");[0,.15,.3,.5].forEach((w,i)=>tone([523,659,784,1047][i],.5,.08,"triangle",w));first.focus({preventScroll:true})},wait);
     function cleanup(){
-      anims.forEach(a=>a.cancel());veil.remove();
+      anims.forEach(a=>a.cancel());veil.remove();extras.forEach(e=>e.remove());
       board.style.transition="";board.style.background="";board.style.boxShadow="";
       end.classList.remove("on");setTimeout(()=>end.remove(),600);
     }
