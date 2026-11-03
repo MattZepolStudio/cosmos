@@ -360,7 +360,7 @@ button{font:inherit;cursor:pointer}
   <ul class="rules">
     <li><b>Glisse le doigt</b> n'importe où pour déplacer tous les astres.</li>
     <li><b>Deux astres identiques</b> fusionnent en l'astre suivant.</li>
-    <li><b>La comète</b> se colle à n'importe quel astre et le fait monter d'un niveau.</li>
+    <li><b>La comète</b> se colle à un astre et le fait monter d'un niveau. Les étoiles sont trop massives pour elle.</li>
     <li class="before-bh"><b>Et après la géante bleue ?</b> Ça, c'est à toi de le découvrir…</li>
     <li class="after-bh" hidden><b>Deux géantes bleues</b> s'effondrent en trou noir : il avale tout le jeu.</li>
     <li class="after-bh" hidden><b>Astres exotiques</b> : dès l'univers 2, la matière noire bloque une case quelques coups (de plus en plus souvent et longtemps) ; dès le 3e, la nébuleuse fait monter un astre de 2 niveaux ; dès le 4e, le pulsar change toutes les poussières en cailloux.</li>
@@ -439,9 +439,9 @@ const MAX=12;
 const XINFO={
   dark:{name:"Matière noire",from:2,tag:"✕",rule:"Dans le jeu : elle ne fusionne avec rien et bloque une case, puis se dissipe d'elle-même (après 8 coups dans l'univers 2, puis de plus en plus tard).",
     fact:"La matière noire ne brille pas et reste invisible, mais sa gravité trahit sa présence : elle représenterait environ 85 % de toute la matière de l'univers."},
-  neb:{name:"Nébuleuse",from:3,tag:"+2",rule:"Dans le jeu : pousse-la contre n'importe quel astre, il monte de 2 niveaux d'un coup.",
+  neb:{name:"Nébuleuse",from:3,tag:"+2",rule:"Dans le jeu : pousse-la contre un astre (sauf une étoile), il monte de 2 niveaux d'un coup.",
     fact:"Les nébuleuses sont d'immenses nuages de gaz et de poussière, de véritables pouponnières où naissent les étoiles."},
-  pul:{name:"Pulsar",from:4,tag:"✦",rule:"Dans le jeu : fusionne-le avec un astre (+1 niveau) et toutes les poussières du plateau deviennent des cailloux.",
+  pul:{name:"Pulsar",from:4,tag:"✦",rule:"Dans le jeu : fusionne-le avec un astre, sauf une étoile (+1 niveau), et toutes les poussières du plateau deviennent des cailloux.",
     fact:"Un pulsar est le cœur d'une étoile effondrée qui tourne sur lui-même en balayant l'espace de faisceaux, comme un phare. Certains font plus de 700 tours par seconde."}
 };
 const XKEYS=["dark","neb","pul"];
@@ -521,17 +521,19 @@ function spawn(){
   if(!t.comet&&universe>=2)maybeExotic(t,e.length);
   grid[r][c]=t;mk(t,"spawn");
   if(t.x)discoverX(t.x);
-  if(t.comet)setTimeout(()=>showTip("comet","<b>Une comète !</b> Pousse-la contre n'importe quel astre : il monte d'un niveau. Tu gagnes aussi une annulation."),250);
+  if(t.comet)setTimeout(()=>showTip("comet","<b>Une comète !</b> Pousse-la contre un astre : il monte d'un niveau (sauf les étoiles, trop massives). Tu gagnes aussi une annulation."),250);
 }
 /* bonus de niveau apporté par un joker : comète +1, nébuleuse +2, pulsar +1 */
+const STAR_LVL=9; /* naine rouge */
 function jokerUp(t){return t.comet?1:t.x==="neb"?2:t.x==="pul"?1:0}
 function canMerge(a,b){
   if(!a||!b)return false;
   if(a.x==="dark"||b.x==="dark")return false;
   const ja=jokerUp(a),jb=jokerUp(b);
   if(ja&&jb)return false;
-  if(ja)return b.lvl<MAX;
-  if(jb)return a.lvl<MAX;
+  /* les étoiles (naine rouge et au-delà) sont trop massives pour les jokers */
+  if(ja)return b.lvl<STAR_LVL;
+  if(jb)return a.lvl<STAR_LVL;
   return a.lvl===b.lvl&&a.lvl<MAX;
 }
 function lineCells(dir,i){
