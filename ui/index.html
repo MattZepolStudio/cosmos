@@ -547,7 +547,7 @@ function blackHoleFinale(holes){
   for(let r=0;r<4;r++)for(let c=0;c<4;c++){const t=grid[r][c];if(!t||t===h)continue;swallowed+=t.comet?64:2**t.lvl;victims.push(t)}
   swallowed+=4096*(holes.length-1);
   const bonus=4096+swallowed;
-  over=true;
+  over=true;clearSave();
   const T=reduced?0:1;
   let ended=false;
   const timers=[],anims=[];const later=(f,ms)=>timers.push(setTimeout(f,ms*T));
@@ -723,7 +723,7 @@ function move(dir){
     }else finish();
   },135);
 }
-function finish(){spawn();busy=false;if(!canPlay()){over=true;const rec=score>=best&&score>0;tone(330,.5,.1,"triangle",0,165);showOverlay(rec?"Nouveau record !":"Plus de place",rec?"Masse totale : "+score+". Personne n'est allé aussi loin sur ce téléphone.":"L'espace est saturé. Masse totale : "+score+". Record : "+best+".","Rejouer","over")}}
+function finish(){spawn();busy=false;if(canPlay())saveGame();else{clearSave();over=true;const rec=score>=best&&score>0;tone(330,.5,.1,"triangle",0,165);showOverlay(rec?"Nouveau record !":"Plus de place",rec?"Masse totale : "+score+". Personne n'est allé aussi loin sur ce téléphone.":"L'espace est saturé. Masse totale : "+score+". Record : "+best+".","Rejouer","over")}}
 function canPlay(){
   if(empties().length)return true;
   for(let r=0;r<4;r++)for(let c=0;c<4;c++){
@@ -753,7 +753,7 @@ function snapshot(){return{tiles:grid.flat().filter(Boolean).map(t=>({r:t.r,c:t.
 function syncUndo(){document.getElementById("undoCount").textContent=mode==="daily"?"–":undos;undoBtn.disabled=mode==="daily"||!(undos>0&&prev);undoBtn.setAttribute("aria-label","Annuler le dernier coup ("+undos+" restante"+(undos>1?"s":"")+")")}
 function undo(){
   if(busy||!prev||undos<=0||mode==="daily")return;
-  const keepWon=wonShown;restore({...prev,wonShown:keepWon});undos--;prev=null;syncUndo();tone(440,.12,.08,"sine",0,300);
+  const keepWon=wonShown;restore({...prev,wonShown:keepWon});undos--;prev=null;syncUndo();tone(440,.12,.08,"sine",0,300);saveGame();
 }
 undoBtn.onclick=undo;
 document.getElementById("newBtn").onclick=()=>{
@@ -940,23 +940,48 @@ function applyMode(m){
   document.getElementById("mDaily").setAttribute("aria-pressed",String(m==="daily"));
   missBtn.hidden=m!=="daily";
   document.getElementById("bestLbl").textContent=m==="daily"?"Jour":"Record";
-  renderMissions();newGame();renderRank();
+  renderMissions();resumeOrNew(m);renderRank();
+  try{localStorage.setItem("cosmos-last-mode",m)}catch(e){}
   if(m==="daily")setTimeout(()=>showTip("daily-"+dayKey,"<b>Défi du "+dayLabel+"</b> : tout le monde joue la même partie aujourd'hui. Tes 3 missions :<ul>"+MISSIONS.map(x=>"<li>"+x.txt+"</li>").join("")+"</ul>",0,true),300);
 }
 function askMode(m){
-  if(m===mode)return;
-  if(over||score===0){applyMode(m);return}
-  pendingMode=m;
-  showOverlay(m==="daily"?"Passer au défi du jour ?":"Revenir en partie libre ?","Ta partie en cours sera perdue. Masse actuelle : "+score+".",m==="daily"?"Lancer le défi":"Changer de mode","switch");
+  if(m===mode||busy)return;
+  saveGame();applyMode(m); /* chaque mode garde sa partie : rien n'est perdu en changeant */
 }
 document.getElementById("mFree").onclick=()=>askMode("free");
 document.getElementById("mDaily").onclick=()=>askMode("daily");
 
+/* --- sauvegarde de la partie en cours (une par mode), pour la reprendre en rouvrant l'appli --- */
+let randCalls=0;
+function saveKey(m){return m==="daily"?"cosmos-save-daily-"+dayKey:"cosmos-save-free"}
+function makeRand(m,skip){
+  randCalls=0;if(m!=="daily")return Math.random;
+  const r=seedRng("orbite-"+dayKey);for(let i=0;i<skip;i++)r();randCalls=skip;
+  return()=>{randCalls++;return r()};
+}
+function saveGame(){
+  if(over||!grid)return;
+  try{localStorage.setItem(saveKey(mode),JSON.stringify({v:1,tiles:snapshot().tiles,score,undos,prev,wonShown,movesCount,topLvl,randCalls}));localStorage.setItem("cosmos-last-mode",mode)}catch(e){}
+}
+function clearSave(m){try{localStorage.removeItem(saveKey(m||mode))}catch(e){}}
+function loadSave(m){try{const s=JSON.parse(localStorage.getItem(saveKey(m))||"null");return s&&Array.isArray(s.tiles)&&s.tiles.length?s:null}catch(e){return null}}
+function resumeOrNew(m){
+  const s=loadSave(m);if(!s){newGame();return}
+  restore(s);
+  movesCount=s.movesCount||0;topLvl=Math.max(topLvl,s.topLvl||1);prev=s.prev||null;
+  if(typeof s.undos==="number")undos=s.undos;
+  rand=makeRand(m,s.randCalls||0);syncUndo();
+  if(!canPlay()){over=true;clearSave(m);showOverlay("Plus de place","L'espace est saturé. Masse totale : "+score+". Record : "+best+".","Rejouer","over")}
+}
+/* les sauvegardes des défis des jours précédents ne servent plus */
+try{Object.keys(localStorage).filter(k=>k.startsWith("cosmos-save-daily-")&&k!==saveKey("daily")).forEach(k=>localStorage.removeItem(k))}catch(e){}
+
 function newGame(){
   tilesEl.innerHTML="";els.clear();over=false;busy=false;wonShown=false;overlay.hidden=true;
   grid=[[null,null,null,null],[null,null,null,null],[null,null,null,null],[null,null,null,null]];
-  rand=mode==="daily"?seedRng("orbite-"+dayKey):Math.random;movesCount=0;
+  rand=makeRand(mode,0);movesCount=0;
   score=0;topLvl=1;setScore(0);spawn();spawn();undos=mode==="daily"?0:1;prev=null;syncUndo();
+  saveGame();
 }
 function restore(s){
   tilesEl.innerHTML="";els.clear();over=false;busy=false;overlay.hidden=true;
@@ -1022,7 +1047,10 @@ function start(data){
   renderChain();bestEl.textContent=best;syncSound();renderMissions();
   document.querySelectorAll(".logo .pl").forEach(el=>{const src=window.SPRITES&&SPRITES[el.dataset.l];if(!src)return;const c=document.createElement("canvas");c.width=c.height=src.width;c.getContext("2d").drawImage(src,0,0);el.textContent="";el.appendChild(c)});
   startLogoOrbit();
-  if(data&&data.tiles&&data.tiles.length)restore(data);else newGame();
+  let last="free";try{last=localStorage.getItem("cosmos-last-mode")||"free"}catch(e){}
+  if(data&&data.tiles&&data.tiles.length){restore(data);saveGame()}
+  else if(last==="daily")applyMode("daily");
+  else resumeOrNew("free");
   syncUndo();
   setTimeout(()=>showTip("swipe","<b>Glisse le doigt</b> dans une direction : tous les astres bougent. Deux astres identiques fusionnent.",9000),500);
 }
