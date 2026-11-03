@@ -33,6 +33,7 @@ let data = { players: {}, daily: {}, stats: {} };
 
 async function redis(cmd) {
   const r = await fetch(UPSTASH_URL, {
+    signal: AbortSignal.timeout(10000), // jamais d'attente infinie si Upstash ne répond pas
     method: "POST",
     headers: { Authorization: `Bearer ${UPSTASH_TOKEN}`, "Content-Type": "application/json" },
     body: JSON.stringify(cmd)
@@ -41,15 +42,40 @@ async function redis(cmd) {
   return (await r.json()).result;
 }
 
+// Tant que le classement n'a pas pu être lu, on n'écrit JAMAIS : sinon un classement vide
+// remplacerait le vrai (par exemple si Upstash ne répond pas au démarrage).
+let loaded = false;
+function mergeInto(base, extra) {
+  // garde ce qui a été joué pendant que le classement était injoignable
+  for (const [id, p] of Object.entries(extra.players)) {
+    const b = base.players[id];
+    if (!b) base.players[id] = p;
+    else { if ((p.best || 0) > (b.best || 0)) Object.assign(b, { best: p.best, top: p.top, uni: p.uni }); if (p.pseudo && !b.pseudo) b.pseudo = p.pseudo; }
+  }
+  for (const [day, rows] of Object.entries(extra.daily)) {
+    const d = base.daily[day] || (base.daily[day] = {});
+    for (const [id, r] of Object.entries(rows)) if (!d[id] || r.best > d[id].best || r.done > d[id].done) d[id] = { ...d[id], ...r };
+  }
+  for (const [day, st] of Object.entries(extra.stats)) if (!base.stats[day]) base.stats[day] = st;
+  return base;
+}
 async function load() {
   try {
     const raw = UPSTASH_URL ? await redis(["GET", REDIS_KEY]) : await fsp.readFile(DATA_FILE, "utf8");
+    let fresh = { players: {}, daily: {}, stats: {} };
     if (raw) {
       const d = JSON.parse(raw);
-      data = { players: d.players || {}, daily: d.daily || {}, stats: d.stats || {} };
+      fresh = { players: d.players || {}, daily: d.daily || {}, stats: d.stats || {} };
     }
+    data = mergeInto(fresh, data);
+    loaded = true;
   } catch (e) {
-    if (e.code !== "ENOENT") console.error("Lecture des données impossible :", e.message);
+    if (e.code === "ENOENT") { loaded = true; }
+    else {
+      console.error("Lecture du classement impossible, nouvel essai dans 30 s :", e.message);
+      setTimeout(() => load().then(() => { if (loaded) { cleanup(); scheduleSave(); } }), 30000).unref();
+      return;
+    }
   }
   console.log(`📂 ${Object.keys(data.players).length} joueur(s) chargé(s) depuis ${UPSTASH_URL ? "Upstash" : DATA_FILE}`);
 }
@@ -61,6 +87,7 @@ function scheduleSave() {
 }
 function saveNow() {
   clearTimeout(saveTimer);
+  if (!loaded) { console.error("Sauvegarde annulée : le classement n'a pas encore pu être lu."); return saving; }
   saving = saving.then(async () => {
     const raw = JSON.stringify(data);
     try {
@@ -401,6 +428,7 @@ const server = http.createServer(async (req, res) => {
     let body = {};
     try { body = raw ? JSON.parse(raw) : {}; } catch { return send(res, 400, "{}", MIME[".json"]); }
     if (!body || typeof body !== "object") body = {};
+    await ready;
     markActive(key);
     return send(res, 200, JSON.stringify(fn(key, body, ip)), MIME[".json"], { "Cache-Control": "no-store" });
   }
@@ -420,9 +448,10 @@ const server = http.createServer(async (req, res) => {
   return send(res, 404, "Introuvable", "text/plain; charset=utf-8");
 });
 
-await load();
-cleanup();
+// On ouvre le serveur tout de suite (Render vérifie /healthz pendant le déploiement),
+// puis on charge le classement ; les appels au classement attendent ce chargement.
 server.listen(PORT, "0.0.0.0", () => console.log(`✅ Cosmos en ligne sur le port ${PORT}`));
+const ready = load().then(cleanup).catch(e => console.error("Chargement du classement :", e.message));
 
 async function shutdown(sig) {
   console.log(`${sig} reçu : sauvegarde du classement…`);
