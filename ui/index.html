@@ -1139,7 +1139,7 @@ async function pushScore(force){
 }
 let remoteDone=0;
 function schedulePush(){clearTimeout(pushTimer);pushTimer=setTimeout(()=>pushScore(false),2500)}
-const PSEUDO_ERR={invalid:"3 à 16 caractères : lettres, chiffres, espace, tiret, point ou tiret bas.",taken:"Ce pseudo est déjà pris par un autre joueur.",cooldown:"Patiente quelques secondes avant de réessayer."};
+const PSEUDO_ERR={invalid:"3 à 16 caractères : lettres, chiffres, espace, tiret, point ou tiret bas.",taken:"Ce pseudo est déjà pris par un autre joueur.",cooldown:"Patiente quelques secondes avant de réessayer.",busy:"Trop de nouveaux joueurs depuis ta connexion. Réessaie un peu plus tard."};
 pseudoForm.addEventListener("submit",async e=>{
   e.preventDefault();
   const v=pseudoIn.value.trim().replace(/\s+/g," ");

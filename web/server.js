@@ -146,7 +146,8 @@ function getBoard(key, body) {
   };
 }
 
-function setPseudo(key, body) {
+function setPseudo(key, body, ip) {
+  if (!data.players[key] && !allowNewPlayer(ip)) return { ok: false, error: "busy" };
   const pseudo = cleanPseudo(body.pseudo);
   if (!pseudo) return { ok: false, error: "invalid" };
   const low = pseudo.toLowerCase();
@@ -160,8 +161,9 @@ function setPseudo(key, body) {
   return { ok: true, pseudo };
 }
 
-function submitScore(key, body) {
+function submitScore(key, body, ip) {
   if (tooSoon(key, "score")) return { ok: false, error: "cooldown" };
+  if (!data.players[key] && !allowNewPlayer(ip)) return { ok: false, error: "busy" };
   const p = data.players[key] || (data.players[key] = { pseudo: null, best: 0, top: 1 });
   const best = clampInt(body.best, 0, CONFIG.maxScore);
   if (best > p.best) { p.best = best; p.top = clampInt(body.top, 1, 12); p.uni = clampInt(body.uni, 1, 999); }
@@ -185,6 +187,55 @@ function submitScore(key, body) {
 }
 
 const API = { getBoard, setPseudo, submitScore };
+
+/* ---------- protection 1 : limites par connexion (contre les scripts) ---------- */
+const LIMITS = {
+  reqPerMin: Number(process.env.COSMOS_REQ_PER_MIN) || 120,          // requêtes au classement par minute et par connexion
+  newPlayersPerHour: Number(process.env.COSMOS_NEW_PER_HOUR) || 20,   // nouveaux joueurs par heure et par connexion
+  maxPlayers: Number(process.env.COSMOS_MAX_PLAYERS) || 4000          // plafond total, pour que la base reste petite
+};
+const hits = new Map();
+function clientIp(req) {
+  const f = req.headers["x-forwarded-for"]; // Render place l'adresse réelle du joueur ici
+  return (typeof f === "string" && f.split(",")[0].trim()) || req.socket.remoteAddress || "?";
+}
+function bucket(ip) {
+  const m = Math.floor(Date.now() / 60000);
+  let h = hits.get(ip);
+  if (!h) { h = { m, n: 0, hr: Math.floor(m / 60), created: 0 }; hits.set(ip, h); }
+  if (h.m !== m) { h.m = m; h.n = 0; }
+  if (h.hr !== Math.floor(m / 60)) { h.hr = Math.floor(m / 60); h.created = 0; }
+  return h;
+}
+const allowRequest = ip => ++bucket(ip).n <= LIMITS.reqPerMin;
+function allowNewPlayer(ip) {
+  const h = bucket(ip);
+  if (Object.keys(data.players).length >= LIMITS.maxPlayers) return false;
+  if (h.created >= LIMITS.newPlayersPerHour) return false;
+  h.created++;
+  return true;
+}
+setInterval(() => { const m = Math.floor(Date.now() / 60000); for (const [ip, h] of hits) if (m - h.m > 60) hits.delete(ip); }, 10 * 60000).unref();
+
+/* ---------- protection 2 : ménage des joueurs fantômes ---------- */
+// Un joueur sans pseudo, avec un tout petit score et inactif depuis 7 jours est supprimé.
+const CLEAN = { days: Number(process.env.COSMOS_CLEAN_DAYS) || 7, minScore: 5000 };
+function cleanup() {
+  const limit = Date.now() - CLEAN.days * 864e5;
+  let n = 0;
+  for (const [id, p] of Object.entries(data.players)) {
+    if (!p.updatedAt) { p.updatedAt = Date.now(); continue; } // anciens joueurs : on leur laisse le délai complet
+    if (!p.pseudo && (p.best || 0) < CLEAN.minScore && p.updatedAt < limit) {
+      delete data.players[id];
+      for (const day of Object.values(data.daily)) delete day[id];
+      n++;
+    }
+  }
+  if (n) console.log(`🧹 ${n} joueur(s) fantôme(s) supprimé(s)`);
+  scheduleSave();
+  return n;
+}
+setInterval(cleanup, 6 * 3600e3).unref();
 
 /* ---------- fichiers statiques ---------- */
 const MIME = {
@@ -238,6 +289,8 @@ const server = http.createServer(async (req, res) => {
   if (p.startsWith("/api/nui/")) {
     const fn = API[p.slice(9)];
     if (!fn || req.method !== "POST") return send(res, 404, "{}", MIME[".json"]);
+    const ip = clientIp(req);
+    if (!allowRequest(ip)) return send(res, 429, JSON.stringify({ ok: false, error: "busy" }), MIME[".json"], { "Retry-After": "60" });
     const key = playerKey(req);
     if (!key) return send(res, 400, JSON.stringify({ ok: false, error: "player" }), MIME[".json"]);
     let raw = "";
@@ -245,7 +298,7 @@ const server = http.createServer(async (req, res) => {
     let body = {};
     try { body = raw ? JSON.parse(raw) : {}; } catch { return send(res, 400, "{}", MIME[".json"]); }
     if (!body || typeof body !== "object") body = {};
-    return send(res, 200, JSON.stringify(fn(key, body)), MIME[".json"], { "Cache-Control": "no-store" });
+    return send(res, 200, JSON.stringify(fn(key, body, ip)), MIME[".json"], { "Cache-Control": "no-store" });
   }
 
   if (req.method !== "GET" && req.method !== "HEAD") return send(res, 405, "", "text/plain");
@@ -264,6 +317,7 @@ const server = http.createServer(async (req, res) => {
 });
 
 await load();
+cleanup();
 server.listen(PORT, "0.0.0.0", () => console.log(`✅ Cosmos en ligne sur le port ${PORT}`));
 
 async function shutdown(sig) {

@@ -173,6 +173,19 @@ Sans ces variables, le classement est écrit dans `web/.data/cosmos.json`.
 - Mots interdits dans les pseudos : variable `COSMOS_BANNED_WORDS`
   (liste séparée par des virgules, par défaut `admin,staff,modo`).
 
+### Protections du classement web
+
+- **Limites par connexion** : 120 requêtes par minute et 20 nouveaux joueurs par heure
+  au maximum depuis une même adresse, et 4 000 joueurs au total. Au-delà, le serveur
+  refuse poliment (« Trop de nouveaux joueurs depuis ta connexion »). Réglables avec
+  `COSMOS_REQ_PER_MIN`, `COSMOS_NEW_PER_HOUR` et `COSMOS_MAX_PLAYERS`.
+- **Ménage automatique** : au démarrage puis toutes les 6 heures, les joueurs sans pseudo,
+  avec moins de 5 000 de masse et inactifs depuis 7 jours sont supprimés
+  (`COSMOS_CLEAN_DAYS` pour changer le délai). Les joueurs avec un pseudo ne sont jamais
+  supprimés.
+- Le score reste calculé sur le téléphone : ces mesures bloquent les scripts et
+  protègent la base, pas un tricheur déterminé.
+
 ### Lancer en local
 
 ```
