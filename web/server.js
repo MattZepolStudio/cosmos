@@ -116,20 +116,22 @@ function getBoard(key, body) {
   const day = validDay(body.dayKey) ? body.dayKey : today();
   const me = data.players[key];
   const named = Object.entries(data.players).filter(([, p]) => p.pseudo);
-  const all = named
-    .filter(([, p]) => p.best > 0)
-    .sort((a, b) => b[1].best - a[1].best)
+  const ranked = named.filter(([, p]) => p.best > 0).sort((a, b) => b[1].best - a[1].best);
+  const myRank = ranked.findIndex(([id]) => id === key) + 1 || null;
+  const all = ranked
     .slice(0, CONFIG.boardSize)
     .map(([id, p], i) => ({ id: id === key ? "me" : "a" + (i + 1), name: p.pseudo, best: p.best, top: p.top, uni: p.uni || 1 }));
   const dayRows = data.daily[day] || {};
-  const daily = Object.entries(dayRows)
+  const dayRanked = Object.entries(dayRows)
     .filter(([id]) => data.players[id] && data.players[id].pseudo)
-    .sort((a, b) => b[1].best - a[1].best)
+    .sort((a, b) => b[1].best - a[1].best);
+  const myDayRank = dayRanked.findIndex(([id]) => id === key) + 1 || null;
+  const daily = dayRanked
     .slice(0, CONFIG.boardSize)
     .map(([id, d], i) => ({ id: id === key ? "me" : "d" + (i + 1), name: data.players[id].pseudo, best: d.best, top: d.top, done: d.done }));
   const myDay = dayRows[key];
   return {
-    me: { id: "me", pseudo: me?.pseudo || null, best: me?.best || 0, dayBest: myDay?.best || 0, done: myDay?.done || 0 },
+    me: { id: "me", pseudo: me?.pseudo || null, best: me?.best || 0, dayBest: myDay?.best || 0, done: myDay?.done || 0, rank: myRank, dayRank: myDayRank },
     requirePseudo: true,
     all,
     daily

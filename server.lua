@@ -109,6 +109,18 @@ RegisterNetEvent("cosmos:getBoard", function(id, data)
     local me = MySQL.single.await("SELECT pseudo, best FROM cosmos_scores WHERE player_key = ?", { key })
     local myDay = MySQL.single.await("SELECT best, done FROM cosmos_daily WHERE player_key = ? AND day = ?", { key, day })
 
+    -- Place réelle du joueur, même en dehors du top affiché
+    local listed = (me and me.pseudo) or not Config.RequirePseudo
+    local myRank, myDayRank = nil, nil
+    if listed and me and (me.best or 0) > 0 then
+        myRank = MySQL.scalar.await(("SELECT COUNT(*) + 1 FROM cosmos_scores s WHERE s.best > ? %s"):format(listFilter), { me.best })
+    end
+    if listed and myDay and (myDay.best or 0) > 0 then
+        myDayRank = MySQL.scalar.await(([[
+            SELECT COUNT(*) + 1 FROM cosmos_daily d JOIN cosmos_scores s ON s.player_key = d.player_key
+            WHERE d.day = ? AND d.best > ? %s]]):format(listFilter), { day, myDay.best })
+    end
+
     -- On n'envoie jamais les licences des autres joueurs au téléphone : chaque ligne reçoit un id neutre
     for i, row in ipairs(all) do row.id = (row.id == key) and "me" or ("a" .. i) end
     for i, row in ipairs(daily) do row.id = (row.id == key) and "me" or ("d" .. i) end
@@ -119,7 +131,9 @@ RegisterNetEvent("cosmos:getBoard", function(id, data)
             pseudo = me and me.pseudo or nil,
             best = me and me.best or 0,
             dayBest = myDay and myDay.best or 0,
-            done = myDay and myDay.done or 0
+            done = myDay and myDay.done or 0,
+            rank = myRank,
+            dayRank = myDayRank
         },
         requirePseudo = Config.RequirePseudo,
         all = all,

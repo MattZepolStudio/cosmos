@@ -156,6 +156,11 @@ button{font:inherit;cursor:pointer}
 .ranks{list-style:none;margin:0 auto;padding:0;display:flex;flex-direction:column;gap:6px}
 .ranks li{display:grid;grid-template-columns:28px 34px minmax(0,1fr) auto;align-items:center;gap:8px;background:var(--panel);border-radius:12px;padding:6px 10px}
 .ranks li.me{box-shadow:inset 0 0 0 1.5px var(--flare)}
+.myline{position:sticky;bottom:0;z-index:2;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px;width:100%;max-width:440px;margin:10px auto 0;padding:10px 14px;border:0;border-radius:14px;background:#2a2150;color:var(--ink);font:inherit;text-align:left;box-shadow:inset 0 0 0 1.5px var(--flare),0 -10px 24px #10142bf0;cursor:pointer}
+.myline .pos{font-family:var(--mono);font-weight:700;color:var(--flare);min-width:3ch}
+.myline .who{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.myline .who small{display:block;font-family:var(--mono);font-size:.62rem;font-weight:500;color:var(--muted)}
+.myline .pts{font-family:var(--mono);font-weight:700;font-variant-numeric:tabular-nums}
 .ranks .pos{font-family:var(--mono);font-weight:700;color:var(--muted);text-align:center}
 .ranks li:nth-child(1) .pos{color:#ffd25a}.ranks li:nth-child(2) .pos{color:#d6dcf0}.ranks li:nth-child(3) .pos{color:#e0a070}
 .ranks canvas{width:34px;height:34px;display:block}
@@ -360,6 +365,7 @@ button{font:inherit;cursor:pointer}
   </form>
   <p class="rankNote" id="rankNote">Chargement du classement…</p>
   <ol class="ranks" id="ranks"></ol>
+  <button class="myline" id="myLine" type="button" hidden><span class="pos" id="myPos"></span><span class="who">Toi<small id="myWho"></small></span><span class="pts" id="myPts"></span></button>
 </section>
 
 <section class="sheet" id="missSheet" hidden aria-label="Missions du jour">
@@ -890,7 +896,7 @@ document.getElementById("catBtn").onclick=openSheet;
 document.getElementById("sheetClose").onclick=closeSheet;
 sheetBg.onclick=()=>{closeSheet();closeRank();closeMiss()};
 const rankSheet=document.getElementById("rankSheet");
-function openRank(){rankTab=mode==="daily"?"daily":"all";rankSheet.hidden=false;sheetBg.hidden=false;renderRank();if(typeof refreshBoard==="function")refreshBoard()}
+function openRank(){rankTab=mode==="daily"?"daily":"all";rankSheet.hidden=false;sheetBg.hidden=false;rankSheet.scrollTop=0;scrollToMe=Date.now();renderRank();if(typeof refreshBoard==="function")refreshBoard()}
 function closeRank(){rankSheet.hidden=true;sheetBg.hidden=true}
 document.getElementById("rankBtn").onclick=openRank;
 document.getElementById("rankClose").onclick=closeRank;
@@ -906,16 +912,24 @@ const ranksEl=document.getElementById("ranks"),rankNote=document.getElementById(
 const pseudoNow=document.getElementById("pseudoNow"),pseudoErr=document.getElementById("pseudoErr");
 document.getElementById("pseudoEdit").onclick=()=>{editingPseudo=true;pseudoIn.value=pseudo;renderRank();setTimeout(()=>pseudoIn.focus(),50)};
 function miniSprite(l){const src=window.SPRITES&&SPRITES[l];const c=document.createElement("canvas");c.width=c.height=68;if(src)c.getContext("2d").drawImage(src,0,0,68,68);return c}
-document.getElementById("tDaily").onclick=()=>{rankTab="daily";renderRank()};
-document.getElementById("tAll").onclick=()=>{rankTab="all";renderRank()};
+document.getElementById("tDaily").onclick=()=>{rankTab="daily";scrollToMe=Date.now();renderRank()};
+document.getElementById("tAll").onclick=()=>{rankTab="all";scrollToMe=Date.now();renderRank()};
+document.getElementById("myLine").onclick=()=>{const mine=ranksEl.querySelector("li.me");if(mine)mine.scrollIntoView({block:"center",behavior:"smooth"});else rankSheet.scrollTo({top:rankSheet.scrollHeight,behavior:"smooth"})};
+function standing(tab){
+  const me=window.__me;
+  if(me)return tab==="daily"?{rank:me.dayRank||null,score:me.dayBest||0}:{rank:me.rank||null,score:me.best||0};
+  const list=tab==="daily"?dayRows:rows,i=myId?list.findIndex(r=>r.id===myId):-1;
+  return i>=0?{rank:i+1,score:+list[i].best||0}:{rank:null,score:0};
+}
+const ordinal=n=>n===1?"1er":n+"e";
+let scrollToMe=0; /* moment où l'on a demandé à se placer sur sa ligne (ouverture, changement d'onglet) */
 async function renderRank(){
-  const list=mode==="daily"?dayRows:rows;
-  const myPos=myId?list.findIndex(r=>r.id===myId):-1;
-  document.getElementById("myRank").textContent=myPos>=0?"#"+(myPos+1):"–";
+  const st0=standing(mode==="daily"?"daily":"all");
+  document.getElementById("myRank").textContent=st0.rank?"#"+st0.rank:"–";
   if(rankSheet.hidden)return;
   document.getElementById("tDaily").setAttribute("aria-pressed",String(rankTab==="daily"));
   document.getElementById("tAll").setAttribute("aria-pressed",String(rankTab==="all"));
-  const shown=rankTab==="daily"?dayRows:window.__allRows||[];
+  const shown=(rankTab==="daily"?dayRows:window.__allRows||[]).slice(0,30);
   const askPseudo=!!myId&&canPost&&(!pseudo||editingPseudo);
   pseudoForm.hidden=!askPseudo;
   pseudoNow.hidden=!(pseudo&&!editingPseudo);
@@ -945,6 +959,16 @@ async function renderRank(){
     const pts=document.createElement("span");pts.className="pts";pts.textContent=Math.floor(+r.best||0);
     li.append(pos,art,nm,pts);ranksEl.appendChild(li);
   });
+  const st=standing(rankTab),line=document.getElementById("myLine");
+  line.hidden=!(st.rank&&st.score>0);
+  if(!line.hidden){
+    document.getElementById("myPos").textContent=ordinal(st.rank);
+    document.getElementById("myWho").textContent=(pseudo||"")+(st.rank>30?" · hors du top 30":"");
+    document.getElementById("myPts").textContent=Math.floor(st.score);
+  }
+  if(scrollToMe){const mine=ranksEl.querySelector("li.me");
+    if(Date.now()-scrollToMe>3000)scrollToMe=0;
+    else if(mine){scrollToMe=0;requestAnimationFrame(()=>mine.scrollIntoView({block:"center",behavior:"smooth"}))}}
 }
 async function pushScore(force){
   if(!canPost)return;
@@ -988,7 +1012,7 @@ async function refreshBoard(){
   myId=r.me&&r.me.id||null;
   rows=(r.all||[]).filter(x=>typeof x.best==="number");window.__allRows=rows;
   dayRows=(r.daily||[]).filter(x=>typeof x.best==="number");
-  const me=r.me||{};
+  const me=r.me||{};window.__me=me;
   remoteBest=+me.best||0;remoteDay=+me.dayBest||0;remoteDone=+me.done||0;
   if(inPhone){
     /* le record affiché est celui du serveur pour ce joueur (ou ce personnage), pas celui du navigateur du téléphone */
