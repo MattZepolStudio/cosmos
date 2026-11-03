@@ -967,7 +967,11 @@ function restore(s){
 
 // contrôles
 const KEYS={ArrowLeft:"left",ArrowRight:"right",ArrowUp:"up",ArrowDown:"down",a:"left",d:"right",w:"up",s:"down",q:"left",z:"up"};
-addEventListener("keydown",e=>{const d=KEYS[e.key];if(d){e.preventDefault();move(d)}});
+addEventListener("keydown",e=>{
+  /* pendant la saisie (pseudo…), les lettres Z Q S D et les flèches doivent s'écrire normalement */
+  const t=e.target;if(t&&(t.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)))return;
+  if(e.ctrlKey||e.metaKey||e.altKey)return;
+  const d=KEYS[e.key];if(d){e.preventDefault();move(d)}});
 let sx=null,sy=null;
 const app=document.getElementById("app");
 /* on peut glisser n'importe où sur l'écran de jeu, pas seulement sur le plateau */
