@@ -149,9 +149,16 @@ button{font:inherit;cursor:pointer}
 .pseudo input:focus{outline:none;border-color:var(--nova)}
 .pseudo label{color:var(--ink);font-weight:500}
 .pseudoErr{margin:0;color:#ff9a8a;font-size:.8rem}
-.pseudoNow{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:0 auto 12px;font-size:.88rem;color:var(--muted)}
-.pseudoNow b{color:var(--ink)}
-.link{border:0;background:none;color:var(--nova);font-weight:700;text-decoration:underline;padding:4px}
+.pseudoNow{display:flex;align-items:center;gap:12px;margin:0 auto 12px;padding:10px 10px 10px 12px;background:var(--panel);border-radius:14px}
+.pseudoNow .avatar{flex:none;width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:1rem;color:#2a1400;background:radial-gradient(circle at 35% 30%,#ffd59a,var(--flare) 60%,#c96a1a);box-shadow:0 0 12px #ffb35c55}
+.pseudoNow .pn{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.pseudoNow small{font-family:var(--mono);font-size:.62rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.pseudoNow b{color:var(--ink);font-size:1rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.editBtn{flex:none;display:inline-flex;align-items:center;gap:6px;border:0;border-radius:999px;padding:8px 12px;background:#ffffff12;color:var(--ink);font:inherit;font-size:.82rem;font-weight:600;box-shadow:inset 0 0 0 1px #ffffff1f;cursor:pointer}
+.editBtn svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.editBtn:active{background:#ffffff22}
+.editBtn:focus-visible{outline:2px solid var(--nova);outline-offset:2px}
+.pseudoRow .ghost{background:transparent;color:var(--muted);box-shadow:inset 0 0 0 1.5px #ffffff2a}
 .rankNote{margin:0 auto 10px;color:var(--muted);font-size:.86rem;line-height:1.4}
 .ranks{list-style:none;margin:0 auto;padding:0;display:flex;flex-direction:column;gap:6px}
 .ranks li{display:grid;grid-template-columns:28px 34px minmax(0,1fr) auto;align-items:center;gap:8px;background:var(--panel);border-radius:12px;padding:6px 10px}
@@ -357,10 +364,10 @@ button{font:inherit;cursor:pointer}
     <button type="button" id="tDaily" aria-pressed="true">Défi du jour</button>
     <button type="button" id="tAll" aria-pressed="false">Général</button>
   </div>
-  <div class="pseudoNow" id="pseudoNow" hidden><span>Ton pseudo : <b id="pseudoShown"></b></span><button class="link" id="pseudoEdit" type="button">Modifier</button></div>
+  <div class="pseudoNow" id="pseudoNow" hidden><span class="avatar" id="pseudoInit" aria-hidden="true"></span><span class="pn"><small>Ton pseudo</small><b id="pseudoShown"></b></span><button class="editBtn" id="pseudoEdit" type="button" aria-label="Modifier mon pseudo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg>Modifier</button></div>
   <form class="pseudo" id="pseudoForm" hidden>
     <label for="pseudo" id="pseudoLbl">Choisis ton pseudo pour apparaître dans le classement</label>
-    <div class="pseudoRow"><input id="pseudo" maxlength="16" autocomplete="off" spellcheck="false" placeholder="3 à 16 caractères"><button class="btn" type="submit">Valider</button></div>
+    <div class="pseudoRow"><input id="pseudo" maxlength="16" autocomplete="off" spellcheck="false" placeholder="3 à 16 caractères"><button class="btn ghost" id="pseudoCancel" type="button" hidden>Annuler</button><button class="btn" type="submit">Valider</button></div>
     <p class="pseudoErr" id="pseudoErr" hidden></p>
   </form>
   <p class="rankNote" id="rankNote">Chargement du classement…</p>
@@ -910,7 +917,8 @@ try{recordTop=+localStorage.getItem("orbite-top")||1;recordUni=+localStorage.get
 let pseudo="",editingPseudo=false,requirePseudo=true;
 const ranksEl=document.getElementById("ranks"),rankNote=document.getElementById("rankNote"),pseudoForm=document.getElementById("pseudoForm"),pseudoIn=document.getElementById("pseudo");
 const pseudoNow=document.getElementById("pseudoNow"),pseudoErr=document.getElementById("pseudoErr");
-document.getElementById("pseudoEdit").onclick=()=>{editingPseudo=true;pseudoIn.value=pseudo;renderRank();setTimeout(()=>pseudoIn.focus(),50)};
+document.getElementById("pseudoEdit").onclick=()=>{editingPseudo=true;pseudoIn.value=pseudo;renderRank();setTimeout(()=>{pseudoIn.focus();pseudoIn.select()},50)};
+document.getElementById("pseudoCancel").onclick=()=>{editingPseudo=false;pseudoErr.hidden=true;renderRank()};
 function miniSprite(l){const src=window.SPRITES&&SPRITES[l];const c=document.createElement("canvas");c.width=c.height=68;if(src)c.getContext("2d").drawImage(src,0,0,68,68);return c}
 document.getElementById("tDaily").onclick=()=>{rankTab="daily";scrollToMe=Date.now();renderRank()};
 document.getElementById("tAll").onclick=()=>{rankTab="all";scrollToMe=Date.now();renderRank()};
@@ -934,6 +942,8 @@ async function renderRank(){
   pseudoForm.hidden=!askPseudo;
   pseudoNow.hidden=!(pseudo&&!editingPseudo);
   document.getElementById("pseudoShown").textContent=pseudo;
+  document.getElementById("pseudoInit").textContent=pseudo?[...pseudo.trim()][0].toUpperCase():"";
+  document.getElementById("pseudoCancel").hidden=!(pseudo&&editingPseudo);
   document.getElementById("pseudoLbl").textContent=pseudo?"Nouveau pseudo":"Choisis ton pseudo pour apparaître dans le classement";
   if(rankState==="off"){rankNote.textContent="Le classement n'est pas disponible pour le moment.";ranksEl.innerHTML="";return}
   if(rankState==="loading"){rankNote.textContent="Chargement du classement…";return}
