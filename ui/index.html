@@ -325,7 +325,8 @@ button{font:inherit;cursor:pointer}
     <li><b>Glisse le doigt</b> n'importe où pour déplacer tous les astres.</li>
     <li><b>Deux astres identiques</b> fusionnent en l'astre suivant.</li>
     <li><b>La comète</b> se colle à n'importe quel astre et le fait monter d'un niveau.</li>
-    <li><b>Deux géantes bleues</b> s'effondrent en trou noir : il avale tous ses voisins et libère leur masse.</li>
+    <li><b>Deux géantes bleues</b> s'effondrent en trou noir : il avale tout le jeu.</li>
+    <li><b>En partie libre</b>, continue dans un nouvel univers : ta masse est gardée et les fusions rapportent plus (jusqu'à ×3), mais des débris t'attendent et les comètes se font rares.</li>
   </ul>
 </section>
 
@@ -409,7 +410,12 @@ const FACTS=["Le noyau d'une comète est une boule de glace et de poussière de 
 const tilesEl=document.getElementById("tiles"),scoreEl=document.getElementById("score"),bestEl=document.getElementById("best"),
       overlay=document.getElementById("overlay"),board=document.getElementById("board"),chainEl=document.getElementById("chain");
 let universe=1;
-const uniMult=()=>1+.5*(universe-1);
+/* Univers suivants : ×1,5, ×2, ×2,5… plafonné à ×3, et chaque univers est un peu plus dur */
+const MULT_MAX=3;
+const multFor=u=>Math.min(MULT_MAX,1+.5*(u-1));
+const uniMult=()=>multFor(universe);
+const cometChance=()=>.045/(1+.5*(universe-1)); /* 4,5 % au 1er univers, 3 % au 2e, 2,25 % au 3e… */
+const debrisFor=u=>Math.min(2,u-1);
 const fmtMult=m=>String(Math.round(m*10)/10).replace(".",",");
 function renderUni(){const b=document.getElementById("uniBadge");if(!b)return;b.hidden=universe<2;b.textContent="U"+universe+" ×"+fmtMult(uniMult());b.title="Univers "+universe+" : chaque fusion rapporte ×"+fmtMult(uniMult());b.setAttribute("aria-label",b.title)}
 let mode="free",rand=Math.random,pendingMode="free",movesCount=0,dayBest=0,dayTop=1,dayDone=[];
@@ -440,7 +446,7 @@ function spawn(){
   const [r,c]=e[Math.floor(rand()*e.length)];
   const x=rand();
   const t={id:nextId++,r,c,lvl:x<.88?1:2,comet:false};
-  if(x>.955&&!hasComet()){t.comet=true;t.lvl=0}
+  if(x>1-cometChance()&&!hasComet()){t.comet=true;t.lvl=0}
   grid[r][c]=t;mk(t,"spawn");
   if(t.comet)setTimeout(()=>showTip("comet","<b>Une comète !</b> Pousse-la contre n'importe quel astre : il monte d'un niveau. Tu gagnes aussi une annulation."),250);
 }
@@ -614,13 +620,13 @@ function blackHoleFinale(holes){
     timers.forEach(id=>{clearTimeout(id);clearInterval(id)});
     skip.remove();
     setScore(score+bonus);
-    const free=mode!=="daily",next=universe+1,nextMult=1+.5*(next-1);
+    const free=mode!=="daily",next=universe+1,nextMult=multFor(next);
     if(free){try{localStorage.setItem(saveKey("free"),JSON.stringify({v:1,tiles:[],score,universe:next,pendingUniverse:true,undos}))}catch(e){}}
     const end=document.createElement("div");end.className="bh-end";end.setAttribute("role","dialog");end.setAttribute("aria-labelledby","bhTitle");
     end.innerHTML=`<div class="bh-msg"><p class="eyebrow">${universe>1?"Fin de l'univers "+universe:"Fin du cycle cosmique"}</p><h2 id="bhTitle">Félicitations !</h2>
       <p>Tu as créé un trou noir. Il a tout avalé, jusqu'au dernier grain de poussière.</p>
       <p class="mass">Masse totale<b>${score}</b>${score>=best?"Nouveau record !":"Record : "+best}</p>
-      ${free?`<p>Ta masse est conservée. Dans l'univers ${next}, chaque fusion rapporte ×${fmtMult(nextMult)}.</p>`:`<p>Le défi du jour s'arrête au trou noir : tout le monde est à égalité.</p>`}
+      ${free?`<p>Ta masse est conservée. Dans l'univers ${next}, chaque fusion rapporte ×${fmtMult(nextMult)}${nextMult>=MULT_MAX?" (maximum)":""}. Mais attention : ${debrisFor(next)>1?"des débris":"un débris"} de cet univers t'attend${debrisFor(next)>1?"ent":""}, et les comètes se font plus rares.</p>`:`<p>Le défi du jour s'arrête au trou noir : tout le monde est à égalité.</p>`}
       <div class="bh-btns">${free?`<button class="btn" type="button" data-a="next">Continuer · Univers ${next}</button><button class="btn ghost" type="button" data-a="menu">Retour au menu</button>`:`<button class="btn" type="button" data-a="menu">Retour au menu</button>`}</div></div>`;
     document.body.appendChild(end);
     end.addEventListener("pointerdown",e=>e.stopPropagation());
@@ -646,8 +652,13 @@ function nextUniverse(n){
   grid=[[null,null,null,null],[null,null,null,null],[null,null,null,null],[null,null,null,null]];
   const W=board.clientWidth;
   if(!reduced){bigBang(W/2,W/2);tone(55,1.2,.2,"triangle",0,30);tone(880,.6,.07,"sine",.05,220);buzz([120])}
-  const cap=document.createElement("div");cap.className="bh-caption";cap.innerHTML="Univers "+n+"<small>chaque fusion ×"+fmtMult(uniMult())+"</small>";board.appendChild(cap);setTimeout(()=>cap.remove(),2300);
-  setTimeout(()=>{spawn();spawn();syncUndo();saveGame()},reduced?0:500);
+  const cap=document.createElement("div");cap.className="bh-caption";const nd=debrisFor(n);cap.innerHTML="Univers "+n+"<small>chaque fusion ×"+fmtMult(uniMult())+" · "+nd+" débris</small>";board.appendChild(cap);setTimeout(()=>cap.remove(),2300);
+  setTimeout(()=>{
+    /* débris de l'ancien univers : des astres moyens, de niveaux différents, déjà sur le plateau */
+    const lv=[3,4,5,6].sort(()=>Math.random()-.5);
+    for(let i=0;i<nd;i++){const e=empties();if(!e.length)break;const [r,c]=e[Math.floor(Math.random()*e.length)];
+      const t={id:nextId++,r,c,lvl:lv[i],comet:false};grid[r][c]=t;mk(t,"spawn");topLvl=Math.max(topLvl,t.lvl)}
+    spawn();spawn();syncUndo();saveGame()},reduced?0:500);
 }
 /* petits effets dédiés à la cinématique (toile de particules partagée) */
 function boardToFx(x,y){const W=board.clientWidth;return[x+W*.2,y+W*.2]}
