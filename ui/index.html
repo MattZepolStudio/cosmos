@@ -169,7 +169,12 @@ button{font:inherit;cursor:pointer}
 .ranks{list-style:none;margin:0 auto;padding:0;display:flex;flex-direction:column;gap:6px}
 .ranks li{display:grid;grid-template-columns:28px 34px minmax(0,1fr) auto;align-items:center;gap:8px;background:var(--panel);border-radius:12px;padding:6px 10px}
 .ranks li.me{box-shadow:inset 0 0 0 1.5px var(--flare)}
-.myline{position:sticky;bottom:0;z-index:2;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px;width:100%;max-width:440px;margin:10px auto 0;padding:10px 14px;border:0;border-radius:14px;background:#2a2150;color:var(--ink);font:inherit;text-align:left;box-shadow:inset 0 0 0 1.5px var(--flare),0 -10px 24px #10142bf0;cursor:pointer}
+/* classement : seule la liste des joueurs défile, le haut et la ligne « Toi » restent en place */
+#rankSheet:not([hidden]){display:flex;flex-direction:column;overflow:hidden}
+#rankSheet > *{flex:none;width:100%;box-sizing:border-box}
+#rankSheet > [hidden]{display:none!important}
+#rankSheet .ranks{flex:1 1 auto;min-height:0;width:100%;overflow-y:auto;overscroll-behavior:contain;padding:2px 2px 8px;margin-top:0;box-sizing:border-box;-webkit-mask-image:linear-gradient(#000 calc(100% - 18px),transparent);mask-image:linear-gradient(#000 calc(100% - 18px),transparent)}
+.myline{position:relative;z-index:2;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px;width:100%;max-width:440px;margin:10px auto 0;padding:10px 14px;border:0;border-radius:14px;background:#2a2150;color:var(--ink);font:inherit;text-align:left;box-shadow:inset 0 0 0 1.5px var(--flare),0 -10px 24px #10142bf0;cursor:pointer}
 .myline .pos{font-family:var(--mono);font-weight:700;color:var(--flare);min-width:3ch}
 .myline .who{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .myline .who small{display:block;font-family:var(--mono);font-size:.62rem;font-weight:500;color:var(--muted)}
@@ -1046,7 +1051,7 @@ document.getElementById("catBtn").onclick=openSheet;
 document.getElementById("sheetClose").onclick=closeSheet;
 sheetBg.onclick=()=>{closeSheet();closeRank();closeMiss()};
 const rankSheet=document.getElementById("rankSheet");
-function openRank(){rankTab=mode==="daily"?"daily":"all";rankSheet.hidden=false;sheetBg.hidden=false;rankSheet.scrollTop=0;scrollToMe=Date.now();renderRank();if(typeof refreshBoard==="function")refreshBoard()}
+function openRank(){rankTab=mode==="daily"?"daily":"all";rankSheet.hidden=false;sheetBg.hidden=false;ranksEl.scrollTop=0;scrollToMe=Date.now();renderRank();if(typeof refreshBoard==="function")refreshBoard()}
 function closeRank(){rankSheet.hidden=true;sheetBg.hidden=true}
 document.getElementById("rankBtn").onclick=openRank;
 document.getElementById("rankClose").onclick=closeRank;
@@ -1065,7 +1070,7 @@ document.getElementById("pseudoCancel").onclick=()=>{editingPseudo=false;pseudoE
 function miniSprite(l){const src=window.SPRITES&&SPRITES[l];const c=document.createElement("canvas");c.width=c.height=68;if(src)c.getContext("2d").drawImage(src,0,0,68,68);return c}
 document.getElementById("tDaily").onclick=()=>{rankTab="daily";scrollToMe=Date.now();renderRank()};
 document.getElementById("tAll").onclick=()=>{rankTab="all";scrollToMe=Date.now();renderRank()};
-document.getElementById("myLine").onclick=()=>{const mine=ranksEl.querySelector("li.me");if(mine)mine.scrollIntoView({block:"center",behavior:"smooth"});else rankSheet.scrollTo({top:rankSheet.scrollHeight,behavior:"smooth"})};
+document.getElementById("myLine").onclick=()=>{const mine=ranksEl.querySelector("li.me");if(mine)ranksEl.scrollTo({top:mine.offsetTop-ranksEl.offsetTop-ranksEl.clientHeight/2+mine.offsetHeight/2,behavior:"smooth"});else ranksEl.scrollTo({top:ranksEl.scrollHeight,behavior:"smooth"})};
 function standing(tab){
   const me=window.__me;
   if(me)return tab==="daily"?{rank:me.dayRank||null,score:me.dayBest||0}:{rank:me.rank||null,score:me.best||0};
@@ -1128,7 +1133,7 @@ async function renderRank(){
   }
   if(scrollToMe){const mine=ranksEl.querySelector("li.me");
     if(Date.now()-scrollToMe>3000)scrollToMe=0;
-    else if(mine){scrollToMe=0;requestAnimationFrame(()=>mine.scrollIntoView({block:"center",behavior:"smooth"}))}}
+    else if(mine){scrollToMe=0;requestAnimationFrame(()=>ranksEl.scrollTo({top:mine.offsetTop-ranksEl.offsetTop-ranksEl.clientHeight/2+mine.offsetHeight/2,behavior:"smooth"}))}}
 }
 async function pushScore(force){
   if(!canPost)return;
