@@ -20,10 +20,18 @@ MySQL.ready(function()
             best INT UNSIGNED NOT NULL DEFAULT 0,
             top TINYINT UNSIGNED NOT NULL DEFAULT 1,
             done TINYINT UNSIGNED NOT NULL DEFAULT 0,
+            streak SMALLINT UNSIGNED NOT NULL DEFAULT 0,
             PRIMARY KEY (player_key, day),
             INDEX idx_day_best (day, best)
         )
     ]])
+    -- Ancienne installation sans la colonne de la série du défi du jour : on l'ajoute
+    local hasStreak = MySQL.scalar.await([[
+        SELECT COUNT(*) FROM information_schema.columns
+        WHERE table_schema = DATABASE() AND table_name = 'cosmos_daily' AND column_name = 'streak']])
+    if hasStreak == 0 then
+        MySQL.query.await("ALTER TABLE cosmos_daily ADD COLUMN streak SMALLINT UNSIGNED NOT NULL DEFAULT 0 AFTER done")
+    end
     -- Ancienne installation sans la colonne de l'univers atteint : on l'ajoute
     local hasUni = MySQL.scalar.await([[
         SELECT COUNT(*) FROM information_schema.columns
@@ -66,6 +74,11 @@ local function validDay(d)
     return type(d) == "string" and d:match("^%d%d%d%d%-%d%d%-%d%d$") ~= nil
 end
 
+local function prevDay(d)
+    local y, m, dd = d:match("^(%d+)%-(%d+)%-(%d+)$")
+    return os.date("%Y-%m-%d", os.time({ year = tonumber(y), month = tonumber(m), day = tonumber(dd) - 1, hour = 12 }))
+end
+
 -- Pseudo saisi par le joueur : 3 à 16 caractères, lettres (accents compris), chiffres, espace, _ . -
 local function cleanPseudo(p)
     if type(p) ~= "string" then return nil end
@@ -102,12 +115,20 @@ RegisterNetEvent("cosmos:getBoard", function(id, data)
         WHERE s.best > 0 %s ORDER BY s.best DESC LIMIT ?]]):format(nameExpr, listFilter),
         { Config.BoardSize }) or {}
     local daily = MySQL.query.await(([[
-        SELECT d.player_key AS id, %s AS name, d.best, d.top, d.done
+        SELECT d.player_key AS id, %s AS name, d.best, d.top, d.done, IF(d.done >= 3, GREATEST(d.streak, 1), 0) AS streak
         FROM cosmos_daily d JOIN cosmos_scores s ON s.player_key = d.player_key
         WHERE d.day = ? %s ORDER BY d.best DESC LIMIT ?]]):format(nameExpr, listFilter),
         { day, Config.BoardSize }) or {}
     local me = MySQL.single.await("SELECT pseudo, best FROM cosmos_scores WHERE player_key = ?", { key })
-    local myDay = MySQL.single.await("SELECT best, done FROM cosmos_daily WHERE player_key = ? AND day = ?", { key, day })
+    local myDay = MySQL.single.await("SELECT best, done, streak FROM cosmos_daily WHERE player_key = ? AND day = ?", { key, day })
+    -- Série : celle d'aujourd'hui si le défi est réussi, sinon celle d'hier (encore en cours)
+    local myStreak = 0
+    if myDay and myDay.done >= 3 then
+        myStreak = math.max(myDay.streak or 0, 1)
+    else
+        local y = MySQL.single.await("SELECT done, streak FROM cosmos_daily WHERE player_key = ? AND day = ?", { key, prevDay(day) })
+        if y and y.done >= 3 then myStreak = math.max(y.streak or 0, 1) end
+    end
 
     -- Place réelle du joueur, même en dehors du top affiché
     local listed = (me and me.pseudo) or not Config.RequirePseudo
@@ -132,6 +153,7 @@ RegisterNetEvent("cosmos:getBoard", function(id, data)
             best = me and me.best or 0,
             dayBest = myDay and myDay.best or 0,
             done = myDay and myDay.done or 0,
+            streak = myStreak,
             rank = myRank,
             dayRank = myDayRank
         },
@@ -196,6 +218,14 @@ RegisterNetEvent("cosmos:submitScore", function(id, data)
                     best = GREATEST(best, VALUES(best)),
                     done = GREATEST(done, VALUES(done))]],
                 { key, data.dayKey, dayBest, clampInt(data.dayTop, 1, 12), clampInt(data.done, 0, 3) })
+            -- Défi réussi aujourd'hui : on calcule la série à partir d'hier
+            local row = MySQL.single.await("SELECT done, streak FROM cosmos_daily WHERE player_key = ? AND day = ?", { key, data.dayKey })
+            if row and row.done >= 3 and (row.streak or 0) == 0 then
+                local prev = MySQL.single.await("SELECT done, streak FROM cosmos_daily WHERE player_key = ? AND day = ?", { key, prevDay(data.dayKey) })
+                local s = 1
+                if prev and prev.done >= 3 then s = math.max(prev.streak or 0, 1) + 1 end
+                MySQL.update.await("UPDATE cosmos_daily SET streak = ? WHERE player_key = ? AND day = ?", { s, key, data.dayKey })
+            end
         end
     end
 

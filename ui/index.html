@@ -137,6 +137,12 @@ button{font:inherit;cursor:pointer}
 .missions li{display:flex;align-items:center;gap:10px;background:var(--panel);border-radius:12px;padding:10px 12px;font-size:.92rem}
 .missions .chk{flex:none;width:22px;height:22px;border-radius:50%;box-shadow:inset 0 0 0 2px #ffffff30;display:grid;place-items:center;font-size:.8rem;font-weight:800}
 .missions li.ok{color:var(--muted)}
+.missions .mtxt{flex:1;min-width:0}
+.missions .stars{flex:none;color:var(--flare);font-size:.8rem;letter-spacing:1px}
+.rule{display:flex;flex-direction:column;gap:3px;max-width:440px;margin:0 auto 12px;padding:10px 12px;border-radius:12px;background:linear-gradient(135deg,#2b2160,#1b2a55);box-shadow:inset 0 0 0 1px #ffffff1a;font-size:.86rem;color:#c3c9f0}
+.rule b{color:var(--ink)}
+.missMeta{max-width:440px;margin:12px auto 0;color:var(--muted);font-size:.86rem;line-height:1.5}
+.missMeta b{color:var(--ink)}
 .missions li.ok .chk{background:#3ccf6a;box-shadow:none;color:#05230f}
 .row{display:flex;gap:8px}
 .row .catBtn{min-width:0}
@@ -387,8 +393,10 @@ button{font:inherit;cursor:pointer}
     <h3 id="missTitle">Missions du jour</h3>
     <button class="icon" id="missClose" type="button" aria-label="Fermer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
   </div>
-  <p class="rankNote">Tout le monde joue la même partie aujourd'hui : mêmes astres, mêmes apparitions. Réussis les trois missions et grimpe au classement du jour. Pas d'annulation en défi.</p>
+  <p class="rankNote">Tout le monde joue la même partie aujourd'hui. Réussis les trois missions <b>dans un même essai</b> pour valider le défi et prolonger ta série. Pas d'annulation.</p>
+  <div class="rule" id="ruleBox"></div>
   <ul class="missions" id="missList"></ul>
+  <p class="missMeta" id="missMeta"></p>
 </section>
 
 <div class="sheetBg" id="cardBg" hidden></div>
@@ -462,7 +470,8 @@ let universe=1;
 const MULT_MAX=3;
 const multFor=u=>Math.min(MULT_MAX,1+.5*(u-1));
 const uniMult=()=>multFor(universe);
-const cometChance=()=>.045/(1+.5*(universe-1)); /* 4,5 % au 1er univers, 3 % au 2e, 2,25 % au 3e… */
+const pointMult=()=>uniMult()*(mode==="daily"&&RULE.id==="double"?2:1);
+const cometChance=()=>mode==="daily"?(RULE.id==="comets"?.135:RULE.id==="nocomet"?0:.045):.045/(1+.5*(universe-1)); /* 4,5 % au 1er univers, 3 % au 2e, 2,25 % au 3e… */
 const debrisFor=u=>Math.min(2,u-1);
 const fmtMult=m=>String(Math.round(m*10)/10).replace(".",",");
 const SKIES=["transparent","#123a7a","#5a1630","#0f4a40","#5a3a0c","#3a0f5a"];
@@ -507,7 +516,7 @@ function spawn(){
   const e=empties();if(!e.length)return;
   const [r,c]=e[Math.floor(rand()*e.length)];
   const x=rand();
-  const t={id:nextId++,r,c,lvl:x<.88?1:2,comet:false};
+  const t={id:nextId++,r,c,lvl:x<(dailyRule("rocks")?.6:.88)?1:2,comet:false};
   if(x>1-cometChance()&&!hasComet()){t.comet=true;t.lvl=0}
   if(!t.comet&&universe>=2)maybeExotic(t,e.length);
   grid[r][c]=t;mk(t,"spawn");
@@ -635,7 +644,7 @@ function blackHoleFinale(holes){
   const victims=[];
   for(let r=0;r<4;r++)for(let c=0;c<4;c++){const t=grid[r][c];if(!t||t===h)continue;swallowed+=t.comet?64:2**t.lvl;victims.push(t)}
   swallowed+=4096*(holes.length-1);
-  const bonus=Math.round((4096+swallowed)*uniMult());
+  const bonus=Math.round((4096+swallowed)*pointMult());
   over=true;if(mode==="daily")clearSave();
   const K=1; /* chaque univers a désormais sa propre cinématique, à vitesse normale */
   const T=reduced?0:K;
@@ -971,19 +980,19 @@ function move(dir){
     for(const t of born){
       const viaComet=!!t.cometUsed;if(t.pulsar){pulsars.push(t);delete t.pulsar}if(t.nebula){delete t.nebula;setTimeout(()=>toast("Nébuleuse : +2 niveaux !"),150)}
       if(t.cometUsed){delete t.cometUsed;cometUsedThisMove=true;if(mode==="free"&&undos<3){undos++;syncUndo();setTimeout(()=>toast("Comète utilisée : +1 annulation"),200)}}
-      delete t.srcs;delete t.fresh;mk(t,t.lvl>=9&&t.lvl<MAX?"pop star":"pop");burst(t,"+"+Math.round(2**t.lvl*uniMult()));impact(t,t.lvl,viaComet);top=Math.max(top,t.lvl);topLvl=Math.max(topLvl,t.lvl);discover(t.lvl)}
+      delete t.srcs;delete t.fresh;mk(t,t.lvl>=9&&t.lvl<MAX?"pop star":"pop");burst(t,"+"+Math.round(2**t.lvl*pointMult()));impact(t,t.lvl,viaComet);top=Math.max(top,t.lvl);topLvl=Math.max(topLvl,t.lvl);discover(t.lvl)}
     tickDark();
     for(const pt of pulsars)pulsarWave(pt);
     if(top){tone(196*Math.pow(2,top/4),.16,.11,"sine",0,262*Math.pow(2,top/4));buzz(top>=8?30:12);if(top>=8&&top<MAX)shake(false)}
-    setScore(score+Math.round(gain*uniMult()));
-    if(mode==="daily")checkMissions({merges:born.length,comet:cometUsedThisMove});
+    setScore(score+Math.round(gain*pointMult()));
+    if(mode==="daily")checkMissions({merges:born.length,comet:cometUsedThisMove,levels:born.map(t=>t.lvl)});
     const holes=born.filter(t=>t.lvl===MAX);
     if(holes.length){
       setTimeout(()=>blackHoleFinale(holes),300);
     }else finish();
   },135);
 }
-function finish(){spawn();busy=false;if(canPlay())saveGame();else{clearSave();over=true;const rec=score>=best&&score>0;tone(330,.5,.1,"triangle",0,165);showOverlay(rec?"Nouveau record !":"Plus de place",rec?"Masse totale : "+score+". Personne n'est allé aussi loin sur ce téléphone.":"L'espace est saturé. Masse totale : "+score+". Record : "+best+".","Rejouer","over")}}
+function finish(){spawn();busy=false;if(canPlay())saveGame();else{clearSave();over=true;const rec=score>=best&&score>0;tone(330,.5,.1,"triangle",0,165);showOverlay(rec?"Nouveau record !":"Plus de place",(rec?"Masse totale : "+score+". Personne n'est allé aussi loin sur ce téléphone.":"L'espace est saturé. Masse totale : "+score+". Record : "+best+".")+(mode==="daily"?" Missions de cet essai : "+attempt.done.length+"/3.":""),"Rejouer","over")}}
 function canPlay(){
   if(empties().length)return true;
   for(let r=0;r<4;r++)for(let c=0;c<4;c++){
@@ -1090,7 +1099,7 @@ async function renderRank(){
     const nm=document.createElement("span");nm.className="who";
     const name=(typeof r.name==="string"&&r.name.trim())||"Joueur";
     nm.textContent=r.id===myId?name+" (toi)":name;
-    const sm=document.createElement("small");sm.textContent=(uniRow?"Univers "+r.uni:NAMES[Math.min(MAX,Math.max(1,+r.top||1))])+(rankTab==="daily"&&typeof r.done==="number"?" · missions "+r.done+"/3":"");nm.appendChild(sm);
+    const sm=document.createElement("small");sm.textContent=(uniRow?"Univers "+r.uni:NAMES[Math.min(MAX,Math.max(1,+r.top||1))])+(rankTab==="daily"&&typeof r.done==="number"?" · missions "+r.done+"/3"+(+r.streak>1?" · 🔥"+r.streak:""):"");nm.appendChild(sm);
     const pts=document.createElement("span");pts.className="pts";pts.textContent=Math.floor(+r.best||0);
     li.append(pos,art,nm,pts);ranksEl.appendChild(li);
   });
@@ -1194,35 +1203,93 @@ const now=new Date();
 const dayKey=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0")+"-"+String(now.getDate()).padStart(2,"0");
 const dayLabel=now.toLocaleDateString("fr-FR",{day:"numeric",month:"long"});
 
-try{const d=JSON.parse(localStorage.getItem("orbite-day-"+dayKey)||"{}");dayBest=d.best||0;dayTop=d.top||1;dayDone=d.done||[]}catch(e){}
-function saveDay(){try{localStorage.setItem("orbite-day-"+dayKey,JSON.stringify({best:dayBest,top:dayTop,done:dayDone}))}catch(e){}}
-const LOW=["","poussière","caillou","astéroïde","lune","planète naine","planète rouge","planète océan","géante gazeuse"];
+/* === Défi du jour v2 : règle du jour, missions ⭐ / ⭐⭐ / ⭐⭐⭐ à réussir dans un même essai, série 🔥 === */
+const addDays=(key,d)=>{const t=new Date(key+"T12:00:00Z");t.setUTCDate(t.getUTCDate()+d);return t.toISOString().slice(0,10)};
+const RULES=[
+  {id:"calm",name:"Univers calme",txt:"Aucune règle spéciale aujourd'hui."},
+  {id:"comets",name:"Pluie de comètes",txt:"Les comètes sont trois fois plus fréquentes."},
+  {id:"nocomet",name:"Ciel sans comète",txt:"Aucune comète n'apparaîtra aujourd'hui."},
+  {id:"debris",name:"Champ de débris",txt:"La partie commence avec un astéroïde et une lune déjà sur le plateau."},
+  {id:"rocks",name:"Pluie de cailloux",txt:"Les cailloux tombent bien plus souvent que la poussière."},
+  {id:"double",name:"Masse double",txt:"Chaque fusion rapporte deux fois plus de masse."}
+];
+const RULE=RULES[Math.floor(seedRng("rule-"+dayKey)()*RULES.length)];
+const dailyRule=id=>mode==="daily"&&RULE.id===id;
+
+/* essai en cours (une partie du défi) et meilleur essai de la journée */
+const DAY_STORE="cosmos-day2-"+dayKey;
+const freshAttempt=()=>({done:[],comets:0,formed:{},top:0});
+let attempt=freshAttempt();
+try{const d=JSON.parse(localStorage.getItem(DAY_STORE)||"{}");dayBest=d.best||0;dayTop=d.top||1;dayDone=d.done||[];if(d.attempt)attempt=d.attempt}catch(e){}
+function saveDay(){try{localStorage.setItem(DAY_STORE,JSON.stringify({best:dayBest,top:dayTop,done:dayDone,attempt}))}catch(e){}}
+
+/* série : nombre de jours d'affilée avec le défi réussi (3/3) */
+function localStreak(){try{const s=JSON.parse(localStorage.getItem("cosmos-streak")||"{}");return s.last===dayKey||s.last===addDays(dayKey,-1)?s.n||0:0}catch(e){return 0}}
+function bumpStreak(){try{const s=JSON.parse(localStorage.getItem("cosmos-streak")||"{}");if(s.last===dayKey)return s.n;
+  const n=s.last===addDays(dayKey,-1)?(s.n||0)+1:1;localStorage.setItem("cosmos-streak",JSON.stringify({last:dayKey,n}));return n}catch(e){return 1}}
+function streakNow(){return Math.max(localStreak(),(window.__me&&+window.__me.streak)||0)}
+
+/* une comète apparaîtra-t-elle assez tôt aujourd'hui ? (on rejoue le tirage commun du jour) */
+const COMET_EARLY=(()=>{
+  const ch=RULE.id==="comets"?.135:RULE.id==="nocomet"?0:.045;if(!ch)return false;
+  const r=seedRng("orbite-"+dayKey);r();if(r()>1-ch)return true;r();if(r()>1-ch)return true;
+  if(RULE.id==="debris"){r();r()}
+  for(let i=0;i<40;i++){r();if(r()>1-ch)return true}return false;
+})();
 const MISSIONS=(()=>{
-  const r=seedRng("missions-"+dayKey);
-  const L=5+Math.floor(r()*3),S=[1500,2500,4000][Math.floor(r()*3)],N=26+2*Math.floor(r()*4);
-  const pool=[
-    {id:"lvl",txt:"Forme une "+LOW[L],test:c=>topLvl>=L},
-    {id:"score",txt:"Atteins "+S+" de masse",test:c=>score>=S},
-    {id:"comet",txt:"Utilise une comète",test:c=>c.comet},
-    {id:"multi",txt:"Fais 3 fusions en un seul coup",test:c=>c.merges>=3},
-    {id:"fast",txt:"Forme une lune en moins de "+N+" coups",test:c=>topLvl>=4&&movesCount<=N}
+  const r=seedRng("missions2-"+dayKey),k=RULE.id==="double"?2:1,fmt=n=>(n*k).toLocaleString("fr-FR");
+  const T1=[
+    {id:"t1-naine",txt:"Forme une planète naine",test:()=>attempt.top>=5},
+    {id:"t1-masse",txt:"Atteins "+fmt(1500)+" de masse",test:()=>score>=1500*k},
+    {id:"t1-duo",txt:"Fais 2 fusions en un seul coup",test:c=>c.merges>=2},
+    {id:"t1-ast",txt:"Forme un astéroïde en moins de 12 coups",test:()=>attempt.top>=3&&movesCount<=12},
+    {id:"t1-lunes",txt:"Forme 3 lunes dans la partie",test:()=>(attempt.formed[4]||0)>=3}
   ];
-  for(let i=pool.length-1;i>0;i--){const j=Math.floor(r()*(i+1));[pool[i],pool[j]]=[pool[j],pool[i]]}
-  return pool.slice(0,3);
+  const T2=[
+    {id:"t2-ocean",txt:"Forme une planète océan",test:()=>attempt.top>=7},
+    {id:"t2-masse",txt:"Atteins "+fmt(4000)+" de masse",test:()=>score>=4000*k},
+    {id:"t2-trio",txt:"Fais 3 fusions en un seul coup",test:c=>c.merges>=3},
+    {id:"t2-lune",txt:"Forme une lune en moins de 24 coups",test:()=>attempt.top>=4&&movesCount<=24},
+    {id:"t2-comet",txt:"Utilise une comète",test:()=>attempt.comets>=1,need:"comet"},
+    {id:"t2-vide",txt:"Atteins "+fmt(2000)+" de masse avec au moins 8 cases vides",test:c=>score>=2000*k&&c.empties>=8}
+  ];
+  const T3=[
+    {id:"t3-geante",txt:"Forme une géante gazeuse sans utiliser de comète",test:()=>attempt.top>=8&&attempt.comets===0,need:"comet"},
+    {id:"t3-naine-rouge",txt:"Forme une naine rouge",test:()=>attempt.top>=9},
+    {id:"t3-masse",txt:"Atteins "+fmt(8000)+" de masse",test:()=>score>=8000*k},
+    {id:"t3-quatre",txt:"Fais 4 fusions en un seul coup",test:c=>c.merges>=4},
+    {id:"t3-ocean",txt:"Forme une planète océan en moins de 110 coups",test:()=>attempt.top>=7&&movesCount<=110},
+    {id:"t3-vide",txt:"Atteins "+fmt(3000)+" de masse avec au moins 6 cases vides",test:c=>score>=3000*k&&c.empties>=6}
+  ];
+  const ok=m=>m.need!=="comet"||COMET_EARLY;
+  return [T1,T2,T3].map((tier,i)=>{const pool=tier.filter(ok);const m=pool[Math.floor(r()*pool.length)];return {...m,stars:i+1}});
 })();
 const missSheet=document.getElementById("missSheet"),missBtn=document.getElementById("missBtn");
 function renderMissions(){
-  const n=dayDone.length;document.getElementById("missCount").textContent=n+"/3";missBtn.classList.toggle("done",n===3);
-  document.getElementById("missTitle").textContent="Missions du "+dayLabel;
+  const n=attempt.done.length;document.getElementById("missCount").textContent=n+"/3";missBtn.classList.toggle("done",n===3);
+  document.getElementById("missTitle").textContent="Défi du "+dayLabel;
+  const rb=document.getElementById("ruleBox");if(rb)rb.innerHTML="<b>Règle du jour : "+RULE.name+"</b><span>"+RULE.txt+"</span>";
   const ul=document.getElementById("missList");ul.innerHTML="";
-  MISSIONS.forEach(m=>{const li=document.createElement("li");const ok=dayDone.includes(m.id);li.className=ok?"ok":"";
-    const k=document.createElement("span");k.className="chk";k.textContent=ok?"✓":"";const tx=document.createElement("span");tx.textContent=m.txt;li.append(k,tx);ul.appendChild(li)});
+  MISSIONS.forEach(m=>{const li=document.createElement("li");const ok=attempt.done.includes(m.id);li.className=ok?"ok":"";
+    const k=document.createElement("span");k.className="chk";k.textContent=ok?"✓":"";
+    const tx=document.createElement("span");tx.className="mtxt";tx.textContent=m.txt;
+    const st=document.createElement("span");st.className="stars";st.textContent="★".repeat(m.stars);st.setAttribute("aria-label",["facile","moyenne","difficile"][m.stars-1]);
+    li.append(k,tx,st);ul.appendChild(li)});
+  const meta=document.getElementById("missMeta");
+  if(meta){const s=streakNow();meta.innerHTML="Cet essai : <b>"+n+"/3</b> · Meilleur essai du jour : <b>"+dayDone.length+"/3</b><br>"+(s?"🔥 Série : <b>"+s+" jour"+(s>1?"s":"")+"</b> d'affilée":"Réussis le défi pour lancer ta série 🔥")}
 }
 function checkMissions(c){
+  /* suivi de l'essai en cours */
+  if(c.comet)attempt.comets++;
+  for(const l of c.levels||[]){attempt.formed[l]=(attempt.formed[l]||0)+1;attempt.top=Math.max(attempt.top,l)}
+  c.empties=empties().length;
   let gained=false;
-  for(const m of MISSIONS){if(!dayDone.includes(m.id)&&m.test(c)){dayDone.push(m.id);gained=true;
-    setTimeout(()=>toast(dayDone.length===3?"Défi du jour réussi !":"Mission accomplie : "+m.txt,3600),350)}}
-  if(gained){saveDay();renderMissions();[0,.1].forEach((w,i)=>tone([784,1175][i],.22,.09,"triangle",w));buzz([20,30,20]);if(typeof schedulePush==="function")schedulePush()}
+  for(const m of MISSIONS){if(!attempt.done.includes(m.id)&&m.test(c)){attempt.done.push(m.id);gained=true;
+    const all=attempt.done.length===3;
+    setTimeout(()=>{if(all){const s=bumpStreak();toast("Défi du jour réussi ! 🔥 Série : "+s,4200)}else toast("Mission "+"★".repeat(m.stars)+" : "+m.txt,3600)},350)}}
+  if(attempt.done.length>dayDone.length){dayDone=attempt.done.slice()}
+  saveDay();
+  if(gained){renderMissions();[0,.1].forEach((w,i)=>tone([784,1175][i],.22,.09,"triangle",w));buzz([20,30,20]);if(typeof schedulePush==="function")schedulePush()}
 }
 function openMiss(){renderMissions();missSheet.hidden=false;sheetBg.hidden=false}
 function closeMiss(){missSheet.hidden=true;sheetBg.hidden=true}
@@ -1235,7 +1302,7 @@ function applyMode(m){
   document.getElementById("bestLbl").textContent=m==="daily"?"Jour":"Record";
   renderMissions();resumeOrNew(m);renderRank();
   try{localStorage.setItem("cosmos-last-mode",m)}catch(e){}
-  if(m==="daily")setTimeout(()=>showTip("daily-"+dayKey,"<b>Défi du "+dayLabel+"</b> : tout le monde joue la même partie aujourd'hui. Tes 3 missions :<ul>"+MISSIONS.map(x=>"<li>"+x.txt+"</li>").join("")+"</ul>",0,true),300);
+  if(m==="daily")setTimeout(()=>showTip("daily-"+dayKey,"<b>Défi du "+dayLabel+"</b> · "+RULE.name+" : "+RULE.txt+"<br>Réussis ces 3 missions dans un même essai :<ul>"+MISSIONS.map(x=>"<li>"+"★".repeat(x.stars)+" "+x.txt+"</li>").join("")+"</ul>",0,true),300);
 }
 function askMode(m){
   if(m===mode||busy)return;
@@ -1276,7 +1343,9 @@ function newGame(){
   tilesEl.innerHTML="";els.clear();over=false;busy=false;wonShown=false;overlay.hidden=true;
   grid=[[null,null,null,null],[null,null,null,null],[null,null,null,null],[null,null,null,null]];
   rand=makeRand(mode,0);movesCount=0;
-  score=0;topLvl=1;universe=1;renderUni();setScore(0);spawn();spawn();undos=mode==="daily"?0:1;prev=null;syncUndo();
+  score=0;topLvl=1;universe=1;renderUni();setScore(0);spawn();spawn();
+  if(dailyRule("debris"))for(const l of [3,4]){const e=empties();if(!e.length)break;const [r,c]=e[Math.floor(rand()*e.length)];const t={id:nextId++,r,c,lvl:l,comet:false};grid[r][c]=t;mk(t,"spawn")}
+  if(mode==="daily"){attempt=freshAttempt();saveDay();renderMissions()}undos=mode==="daily"?0:1;prev=null;syncUndo();
   saveGame();
 }
 function restore(s){

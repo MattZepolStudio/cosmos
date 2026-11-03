@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS cosmos_daily (
     best INT UNSIGNED NOT NULL DEFAULT 0,
     top TINYINT UNSIGNED NOT NULL DEFAULT 1,
     done TINYINT UNSIGNED NOT NULL DEFAULT 0,
+    streak SMALLINT UNSIGNED NOT NULL DEFAULT 0,
     PRIMARY KEY (player_key, day),
     INDEX idx_day_best (day, best)
 );

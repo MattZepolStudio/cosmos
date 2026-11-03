@@ -84,6 +84,14 @@ function pruneDays() {
 const clampInt = (v, lo, hi) => Math.min(hi, Math.max(lo, Math.floor(Number(v) || 0)));
 const validDay = d => typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d);
 const today = () => new Date().toISOString().slice(0, 10);
+const addDays = (key, n) => { const t = new Date(key + "T12:00:00Z"); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10); };
+// Série : jours d'affilée avec le défi réussi (3/3), calculée par le serveur
+function streakOf(key, day) {
+  const d = data.daily[day]?.[key];
+  if (d && d.done >= 3) return d.streak || 1;
+  const y = data.daily[addDays(day, -1)]?.[key];
+  return y && y.done >= 3 ? y.streak || 1 : 0;
+}
 
 function cleanPseudo(p) {
   if (typeof p !== "string") return null;
@@ -128,10 +136,10 @@ function getBoard(key, body) {
   const myDayRank = dayRanked.findIndex(([id]) => id === key) + 1 || null;
   const daily = dayRanked
     .slice(0, CONFIG.boardSize)
-    .map(([id, d], i) => ({ id: id === key ? "me" : "d" + (i + 1), name: data.players[id].pseudo, best: d.best, top: d.top, done: d.done }));
+    .map(([id, d], i) => ({ id: id === key ? "me" : "d" + (i + 1), name: data.players[id].pseudo, best: d.best, top: d.top, done: d.done, streak: d.done >= 3 ? d.streak || 1 : 0 }));
   const myDay = dayRows[key];
   return {
-    me: { id: "me", pseudo: me?.pseudo || null, best: me?.best || 0, dayBest: myDay?.best || 0, done: myDay?.done || 0, rank: myRank, dayRank: myDayRank },
+    me: { id: "me", pseudo: me?.pseudo || null, best: me?.best || 0, dayBest: myDay?.best || 0, done: myDay?.done || 0, rank: myRank, dayRank: myDayRank, streak: streakOf(key, day) },
     requirePseudo: true,
     all,
     daily
@@ -165,6 +173,10 @@ function submitScore(key, body) {
       const d = day[key] || (day[key] = { best: 0, top: 1, done: 0 });
       if (dayBest > d.best) { d.best = dayBest; d.top = clampInt(body.dayTop, 1, 12); }
       d.done = Math.max(d.done, clampInt(body.done, 0, 3));
+      if (d.done >= 3 && !d.streak) {
+        const prev = data.daily[addDays(body.dayKey, -1)]?.[key];
+        d.streak = (prev && prev.done >= 3 ? prev.streak || 1 : 0) + 1;
+      }
       pruneDays();
     }
   }
