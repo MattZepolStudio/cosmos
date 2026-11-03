@@ -342,16 +342,17 @@ button{font:inherit;cursor:pointer}
     <button class="icon" id="sheetClose" type="button" aria-label="Fermer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
   </div>
   <div class="chain" id="chain"></div>
-  <h3 class="xhead">Astres exotiques <b id="xCount">0/3</b></h3>
-  <div class="chain xchain" id="xchain"></div>
+  <h3 class="xhead after-bh" hidden>Astres exotiques <b id="xCount">0/3</b></h3>
+  <div class="chain xchain after-bh" id="xchain" hidden></div>
   <h3>Comment jouer</h3>
   <ul class="rules">
     <li><b>Glisse le doigt</b> n'importe où pour déplacer tous les astres.</li>
     <li><b>Deux astres identiques</b> fusionnent en l'astre suivant.</li>
     <li><b>La comète</b> se colle à n'importe quel astre et le fait monter d'un niveau.</li>
-    <li><b>Deux géantes bleues</b> s'effondrent en trou noir : il avale tout le jeu.</li>
-    <li><b>Astres exotiques</b> : dès l'univers 2, la matière noire bloque une case pendant 15 coups ; dès le 3e, la nébuleuse fait monter un astre de 2 niveaux ; dès le 4e, le pulsar change toutes les poussières en cailloux.</li>
-    <li><b>En partie libre</b>, continue dans un nouvel univers : ta masse est gardée et les fusions rapportent plus (jusqu'à ×3), mais des débris t'attendent et les comètes se font rares.</li>
+    <li class="before-bh"><b>Et après la géante bleue ?</b> Ça, c'est à toi de le découvrir…</li>
+    <li class="after-bh" hidden><b>Deux géantes bleues</b> s'effondrent en trou noir : il avale tout le jeu.</li>
+    <li class="after-bh" hidden><b>Astres exotiques</b> : dès l'univers 2, la matière noire bloque une case pendant 15 coups ; dès le 3e, la nébuleuse fait monter un astre de 2 niveaux ; dès le 4e, le pulsar change toutes les poussières en cailloux.</li>
+    <li class="after-bh" hidden><b>En partie libre</b>, continue dans un nouvel univers : ta masse est gardée et les fusions rapportent plus (jusqu'à ×3), mais des débris t'attendent et les comètes se font rares.</li>
   </ul>
 </section>
 
@@ -1041,10 +1042,14 @@ function renderChain(){
   for(const l of list){
     const d=document.createElement("div");
     d.className="chip l"+l+(seen.has(l)?"":" locked");
-    d.innerHTML=`<div class="face"><div class="body"></div><div class="name">${seen.has(l)?NAMES[l]:"&nbsp;"}</div></div>`;sprite(d,l);
+    d.innerHTML=`<div class="face"><div class="body"></div><div class="name">${seen.has(l)?NAMES[l]:"&nbsp;"}</div></div>`;if(seen.has(l)||l<MAX)sprite(d,l); /* pas même la silhouette du dernier astre */
     if(seen.has(l)){d.tabIndex=0;d.setAttribute("role","button");d.setAttribute("aria-label","Fiche : "+NAMES[l]);d.onclick=()=>showCard(l,false);d.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();showCard(l,false)}}}
     chainEl.appendChild(d);
   }
+  /* pas de spoiler : le trou noir, les univers et les astres exotiques restent secrets tant qu'on n'a pas vu le trou noir */
+  const bhSeen=seen.has(MAX);
+  document.querySelectorAll(".after-bh").forEach(el=>el.hidden=!bhSeen);
+  document.querySelectorAll(".before-bh").forEach(el=>el.hidden=bhSeen);
   const xc=document.getElementById("xchain");
   if(xc){xc.innerHTML="";for(const k of XKEYS){const d=document.createElement("div");const ok=seen.has(k);
     d.className="chip x-"+k+(ok?"":" locked");
