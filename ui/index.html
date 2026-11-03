@@ -462,7 +462,13 @@ function tone(f,dur,vol=.12,type="sine",when=0,slide){
   o.type=type;o.frequency.setValueAtTime(f,t);if(slide)o.frequency.exponentialRampToValueAtTime(slide,t+dur);
   g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(vol,t+.01);g.gain.exponentialRampToValueAtTime(.0005,t+dur);
   o.connect(g).connect(a.destination);o.start(t);o.stop(t+dur+.02);
+  audioOffAt=Math.max(audioOffAt,performance.now()+(when+dur)*1000+600);
+  clearTimeout(audioTimer);audioTimer=setTimeout(audioSleep,audioOffAt-performance.now());
 }
+/* économie de batterie : on éteint le son entre deux effets et quand l'appli passe en arrière-plan */
+let audioTimer=0,audioOffAt=0;
+function audioSleep(){try{if(actx&&actx.state==="running")actx.suspend()}catch(e){}}
+document.addEventListener("visibilitychange",()=>{if(document.hidden)audioSleep()});
 function buzz(p){try{navigator.vibrate&&navigator.vibrate(p)}catch(e){}}
 const fxEl=document.getElementById("fx");
 function center(t){const W=board.clientWidth,g=9,w=(W-5*g)/4;return[g+t.c*(w+g)+w/2,g+t.r*(w+g)+w/2]}
@@ -1037,10 +1043,11 @@ function startLogoOrbit(){
   function frame(t){
     const dt=Math.min(.05,(t-last)/1000);last=t;acc+=dt;
     if(acc>=1/30&&!document.hidden){place(acc);acc=0}
-    if(performance.now()<idleAt)requestAnimationFrame(frame);else running=false;
+    if(performance.now()<idleAt&&!document.hidden)requestAnimationFrame(frame);else running=false;
   }
   function wake(){idleAt=performance.now()+20000;if(!running){running=true;last=performance.now();requestAnimationFrame(frame)}}
   addEventListener("pointerdown",wake);addEventListener("keydown",wake);
+  document.addEventListener("visibilitychange",()=>{if(!document.hidden)wake()});
   wake();
 }
 function start(data){

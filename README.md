@@ -107,6 +107,8 @@ end
 - L'animation du logo tourne à 30 images/s et se met en pause après 20 s sans interaction.
 - Les effets s'arrêtent d'eux-mêmes quand il n'y a plus rien à animer.
 - Les licences des autres joueurs ne sont jamais envoyées au téléphone.
+- Au repos (plus de 20 s sans toucher l'écran), le jeu ne calcule plus rien : 0 image par seconde.
+- Le son s'éteint entre deux effets et dès que l'appli passe en arrière-plan.
 
 ## À vérifier sur ton serveur
 
