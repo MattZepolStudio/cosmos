@@ -94,6 +94,7 @@ button{font:inherit;cursor:pointer}
 .sheetHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
 .sheet h3{margin:0;font-family:var(--mono);font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:500}
 .sheet .chain + h3{margin:18px auto 8px}
+.xhead b{color:var(--ink);margin-left:6px}
 
 #undoBtn{position:relative}
 #undoBtn:disabled{opacity:.35;cursor:default}
@@ -223,6 +224,14 @@ button{font:inherit;cursor:pointer}
 .l3 .body{width:38%;height:30%;border-radius:62% 38% 55% 45%;background:radial-gradient(circle at 65% 55%,#4f6b3a 0 12%,transparent 14%),radial-gradient(circle at 30% 30%,#b8d68a,#4d6e2c)}
 .l4 .body{width:38%;height:38%;background:radial-gradient(circle at 70% 60%,#b4b8c8 0 8%,transparent 9%),radial-gradient(circle at 35% 40%,#a9aec0 0 10%,transparent 11%),radial-gradient(circle at 35% 30%,#ffffff,#b9bfd6);box-shadow:0 0 10px #ffffff55}
 .l5 .body{width:40%;height:40%;background:radial-gradient(ellipse at 55% 60%,#fff0f6 0 16%,transparent 18%),radial-gradient(circle at 35% 30%,#ff9ed2,#b0337a)}
+.x-dark .face{background:#100b1e;box-shadow:inset 0 0 0 1.5px #8f6bff55}.x-neb .face{background:#2a1a3e;box-shadow:inset 0 0 0 1.5px #ff7ac655}.x-pul .face{background:#15264a;box-shadow:inset 0 0 0 1.5px #8fd0ff66}
+.x-dark .face::before{color:#cdb8ff!important}
+.x-pul .body canvas{animation:pulsar 1.6s ease-in-out infinite}
+@keyframes pulsar{50%{filter:brightness(1.35) drop-shadow(0 0 6px #9fd4ff)}}
+.pulse-wave{position:absolute;width:24%;aspect-ratio:1;border-radius:50%;transform:translate(-50%,-50%) scale(.3);border:3px solid #9fd4ff;box-shadow:0 0 18px #9fd4ff;pointer-events:none;z-index:6;animation:pwave .9s ease-out forwards}
+@keyframes pwave{to{transform:translate(-50%,-50%) scale(7);opacity:0;border-width:1px}}
+.xchain{grid-template-columns:repeat(3,minmax(0,1fr))!important;max-width:50%;margin-left:0}
+.uni-sky{position:fixed;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(ellipse at 50% -20%,var(--sky,transparent) 0%,transparent 62%);transition:opacity 1s}
 .l1 .face{background:#2a2550}.l2 .face{background:#3a2a2a}.l3 .face{background:#26392d}.l4 .face{background:#2c3352}.l5 .face{background:#3d2541}.l6 .face{background:#3d2226}.l7 .face{background:#1d3550}.l8 .face{background:#3a3020}
 .tile .face::before{content:attr(data-lvl);position:absolute;top:5px;left:7px;font-family:var(--mono);font-size:.6rem;font-weight:700;color:#ffffff88}
 .face{position:relative}
@@ -256,9 +265,10 @@ button{font:inherit;cursor:pointer}
 .chip.locked::after{content:"?";position:absolute;font-family:var(--mono);color:var(--muted);font-size:.8rem}
 .rules{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px;font-size:.86rem;line-height:1.4;color:var(--muted)}
 .rules b{color:var(--ink)}
-@media (prefers-reduced-motion:reduce){.tile{transition:none}.face,.board,.plus,.ring,.sheet,.card,.tip,.cardArt canvas{animation:none!important}}
+@media (prefers-reduced-motion:reduce){.x-pul .body canvas{animation:none!important}.tile{transition:none}.face,.board,.plus,.ring,.sheet,.card,.tip,.cardArt canvas{animation:none!important}}
 </style>
 
+<div class="uni-sky" id="uniSky" aria-hidden="true"></div>
 <div class="app" id="app">
   <header>
     <h1 class="logo" aria-label="Cosmos">
@@ -320,12 +330,15 @@ button{font:inherit;cursor:pointer}
     <button class="icon" id="sheetClose" type="button" aria-label="Fermer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
   </div>
   <div class="chain" id="chain"></div>
+  <h3 class="xhead">Astres exotiques <b id="xCount">0/3</b></h3>
+  <div class="chain xchain" id="xchain"></div>
   <h3>Comment jouer</h3>
   <ul class="rules">
     <li><b>Glisse le doigt</b> n'importe où pour déplacer tous les astres.</li>
     <li><b>Deux astres identiques</b> fusionnent en l'astre suivant.</li>
     <li><b>La comète</b> se colle à n'importe quel astre et le fait monter d'un niveau.</li>
     <li><b>Deux géantes bleues</b> s'effondrent en trou noir : il avale tout le jeu.</li>
+    <li><b>Astres exotiques</b> : dès l'univers 2, la matière noire bloque une case pendant 15 coups ; dès le 3e, la nébuleuse fait monter un astre de 2 niveaux ; dès le 4e, le pulsar change toutes les poussières en cailloux.</li>
     <li><b>En partie libre</b>, continue dans un nouvel univers : ta masse est gardée et les fusions rapportent plus (jusqu'à ×3), mais des débris t'attendent et les comètes se font rares.</li>
   </ul>
 </section>
@@ -371,8 +384,8 @@ button{font:inherit;cursor:pointer}
 <script>
 /* Astres pré-rendus en PNG (ui/img) : aucune génération au lancement, ouverture instantanée dans le téléphone. */
 (function(){
-const SIZE={1:62,2:48,3:62,4:56,5:58,6:62,7:68,8:88,9:80,10:86,11:90,12:90,c:70};
-const KEYS=["1","2","3","4","5","6","7","8","9","10","11","12","c"];
+const SIZE={1:62,2:48,3:62,4:56,5:58,6:62,7:68,8:88,9:80,10:86,11:90,12:90,c:70,dark:78,neb:84,pul:84};
+const KEYS=["1","2","3","4","5","6","7","8","9","10","11","12","c","dark","neb","pul"];
 window.SPRITES={};
 window.SPRITES_READY=Promise.all(KEYS.map(k=>new Promise(res=>{
   const img=new Image();
@@ -383,7 +396,7 @@ window.SPRITES_READY=Promise.all(KEYS.map(k=>new Promise(res=>{
   let css=".spr{display:block;width:100%;height:100%}";
   for(const k of KEYS){
     if(!SPRITES[k])continue;
-    const sel=k==="c"?".comet":".l"+k,s=SIZE[k];
+    const sel={c:".comet",dark:".x-dark",neb:".x-neb",pul:".x-pul"}[k]||".l"+k,s=SIZE[k];
     css+=`${sel} .body{width:${s}%;height:${s}%;border-radius:0;box-shadow:none;background:none!important}${sel} .body::before,${sel} .body::after{display:none}`;
   }
   css+=`.tile .body{transform:translateY(-9%)}.tile .name{position:absolute;left:0;right:0;bottom:7%}.chip .face{position:relative}.chip .body{height:auto!important;aspect-ratio:1/1;transform:translateY(-13%) scale(.82)}.chip .name{position:absolute;left:0;right:0;bottom:7%;font-size:.5rem;text-shadow:0 1px 3px #0b0d1a,0 0 6px #0b0d1a}`;
@@ -394,6 +407,17 @@ window.SPRITES_READY=Promise.all(KEYS.map(k=>new Promise(res=>{
 <script>
 const NAMES=["","Poussière","Caillou","Astéroïde","Lune","Planète naine","Planète rouge","Planète océan","Géante gazeuse","Naine rouge","Soleil","Géante bleue","Trou noir"];
 const MAX=12;
+/* astres exotiques : apparaissent seulement dans les univers suivants (jamais dans le défi du jour) */
+const XINFO={
+  dark:{name:"Matière noire",from:2,tag:"✕",rule:"Dans le jeu : elle ne fusionne avec rien et bloque une case, puis se dissipe d'elle-même après 15 coups.",
+    fact:"La matière noire ne brille pas et reste invisible, mais sa gravité trahit sa présence : elle représenterait environ 85 % de toute la matière de l'univers."},
+  neb:{name:"Nébuleuse",from:3,tag:"+2",rule:"Dans le jeu : pousse-la contre n'importe quel astre, il monte de 2 niveaux d'un coup.",
+    fact:"Les nébuleuses sont d'immenses nuages de gaz et de poussière, de véritables pouponnières où naissent les étoiles."},
+  pul:{name:"Pulsar",from:4,tag:"✦",rule:"Dans le jeu : fusionne-le avec un astre (+1 niveau) et toutes les poussières du plateau deviennent des cailloux.",
+    fact:"Un pulsar est le cœur d'une étoile effondrée qui tourne sur lui-même en balayant l'espace de faisceaux, comme un phare. Certains font plus de 700 tours par seconde."}
+};
+const XKEYS=["dark","neb","pul"];
+const DARK_TTL=15;
 const FACTS=["Le noyau d'une comète est une boule de glace et de poussière de quelques kilomètres. Sa queue peut s'étirer sur des millions de kilomètres.",
 "Les grains de poussière entre les étoiles mesurent moins d'un millième de millimètre. C'est la matière première de toutes les planètes.",
 "Autour d'une jeune étoile, la poussière se colle en cailloux, qui s'assemblent ensuite en blocs de plus en plus gros.",
@@ -417,7 +441,9 @@ const uniMult=()=>multFor(universe);
 const cometChance=()=>.045/(1+.5*(universe-1)); /* 4,5 % au 1er univers, 3 % au 2e, 2,25 % au 3e… */
 const debrisFor=u=>Math.min(2,u-1);
 const fmtMult=m=>String(Math.round(m*10)/10).replace(".",",");
-function renderUni(){const b=document.getElementById("uniBadge");if(!b)return;b.hidden=universe<2;b.textContent="U"+universe+" ×"+fmtMult(uniMult());b.title="Univers "+universe+" : chaque fusion rapporte ×"+fmtMult(uniMult());b.setAttribute("aria-label",b.title)}
+const SKIES=["transparent","#123a7a","#5a1630","#0f4a40","#5a3a0c","#3a0f5a"];
+function renderUni(){const sky=document.getElementById("uniSky");if(sky)sky.style.setProperty("--sky",universe<2?"transparent":SKIES[(universe-2)%(SKIES.length-1)+1]);
+  const b=document.getElementById("uniBadge");if(!b)return;b.hidden=universe<2;b.textContent="U"+universe+" ×"+fmtMult(uniMult());b.title="Univers "+universe+" : chaque fusion rapporte ×"+fmtMult(uniMult());b.setAttribute("aria-label",b.title)}
 let mode="free",rand=Math.random,pendingMode="free",movesCount=0,dayBest=0,dayTop=1,dayDone=[];
 let grid,score=0,best=0,seen,nextId=1,busy=false,over=false,wonShown=false;
 const els=new Map();
@@ -425,11 +451,14 @@ const els=new Map();
 try{best=+localStorage.getItem("orbite-best")||0}catch(e){}
 try{seen=new Set(JSON.parse(localStorage.getItem("orbite-seen")||"[1,2]"))}catch(e){seen=new Set([1,2])}
 
-function faceHTML(t){return `<div class="face" data-lvl="${t.comet?"★":t.lvl}"><div class="body"></div><div class="name">${t.comet?"Comète":NAMES[t.lvl]}</div></div>`}
+function tileName(t){return t.x?XINFO[t.x].name:t.comet?"Comète":NAMES[t.lvl]}
+function tileTag(t){return t.x==="dark"?t.ttl:t.x?XINFO[t.x].tag:t.comet?"★":t.lvl}
+function tileKey(t){return t.x||(t.comet?"c":t.lvl)}
+function faceHTML(t){return `<div class="face" data-lvl="${tileTag(t)}"><div class="body"></div><div class="name">${tileName(t)}</div></div>`}
 function mk(t,cls){
   const d=document.createElement("div");
-  d.className="tile "+(t.comet?"comet":"l"+t.lvl)+(cls?" "+cls:"");
-  d.innerHTML=faceHTML(t);sprite(d,t.comet?"c":t.lvl);
+  d.className="tile "+(t.x?"x-"+t.x:t.comet?"comet":"l"+t.lvl)+(cls?" "+cls:"");
+  d.innerHTML=faceHTML(t);sprite(d,tileKey(t));
   pos(d,t);tilesEl.appendChild(d);els.set(t.id,d);return d;
 }
 /* copie le sprite peint dans un canvas affiché : aucune relecture de pixels (toDataURL), compatible avec les navigateurs anti-empreinte */
@@ -441,19 +470,35 @@ function sprite(el,key){
 function pos(d,t){d.style.setProperty("--r",t.r);d.style.setProperty("--c",t.c)}
 function empties(){const e=[];for(let r=0;r<4;r++)for(let c=0;c<4;c++)if(!grid[r][c])e.push([r,c]);return e}
 function hasComet(){return grid.flat().some(t=>t&&t.comet)}
+function countX(k){return grid.flat().filter(t=>t&&t.x===k).length}
+const isJoker=t=>t.comet||t.x==="neb"||t.x==="pul";
+/* tirage séparé (Math.random) : le défi du jour, en univers 1, n'est jamais touché */
+function maybeExotic(t,free){
+  const R=Math.random();
+  if(universe>=XINFO.dark.from&&free>3&&countX("dark")<2&&R<.045){t.x="dark";t.lvl=0;t.ttl=DARK_TTL;return}
+  if(universe>=XINFO.neb.from&&!countX("neb")&&!grid.flat().some(u=>u&&isJoker(u))&&R>.045&&R<.057){t.x="neb";t.lvl=0;return}
+  if(universe>=XINFO.pul.from&&!countX("pul")&&R>.057&&R<.072){t.x="pul";t.lvl=0}
+}
 function spawn(){
   const e=empties();if(!e.length)return;
   const [r,c]=e[Math.floor(rand()*e.length)];
   const x=rand();
   const t={id:nextId++,r,c,lvl:x<.88?1:2,comet:false};
   if(x>1-cometChance()&&!hasComet()){t.comet=true;t.lvl=0}
+  if(!t.comet&&universe>=2)maybeExotic(t,e.length);
   grid[r][c]=t;mk(t,"spawn");
+  if(t.x)discoverX(t.x);
   if(t.comet)setTimeout(()=>showTip("comet","<b>Une comète !</b> Pousse-la contre n'importe quel astre : il monte d'un niveau. Tu gagnes aussi une annulation."),250);
 }
+/* bonus de niveau apporté par un joker : comète +1, nébuleuse +2, pulsar +1 */
+function jokerUp(t){return t.comet?1:t.x==="neb"?2:t.x==="pul"?1:0}
 function canMerge(a,b){
-  if(a.comet&&b.comet)return false;
-  if(a.comet)return b.lvl<MAX-1||b.lvl===MAX-1;
-  if(b.comet)return a.lvl<MAX;
+  if(!a||!b)return false;
+  if(a.x==="dark"||b.x==="dark")return false;
+  const ja=jokerUp(a),jb=jokerUp(b);
+  if(ja&&jb)return false;
+  if(ja)return b.lvl<MAX;
+  if(jb)return a.lvl<MAX;
   return a.lvl===b.lvl&&a.lvl<MAX;
 }
 function lineCells(dir,i){
@@ -645,6 +690,25 @@ function blackHoleFinale(holes){
     });
   }
 }
+/* la matière noire se dissipe après DARK_TTL coups */
+function tickDark(){
+  for(let r=0;r<4;r++)for(let c=0;c<4;c++){const t=grid[r][c];if(!t||t.x!=="dark")continue;
+    t.ttl--;const el=els.get(t.id);
+    if(t.ttl<=0){grid[r][c]=null;if(el){el.classList.add("gone");els.delete(t.id);setTimeout(()=>el.remove(),460)}tone(220,.4,.06,"sine",0,90)}
+    else if(el){const f=el.querySelector(".face");if(f)f.dataset.lvl=t.ttl;el.style.opacity=t.ttl<=3?.6:""}}
+}
+/* le pulsar change toutes les poussières en cailloux */
+function pulsarWave(pt){
+  const [x,y]=center(pt);const w=document.createElement("div");w.className="pulse-wave";w.style.left=x+"px";w.style.top=y+"px";board.appendChild(w);setTimeout(()=>w.remove(),950);
+  tone(1200,.5,.07,"sine",0,400);tone(1500,.4,.05,"sine",.12,500);buzz([20,40,20,40,20]);
+  let n=0;
+  for(let r=0;r<4;r++)for(let c=0;c<4;c++){const t=grid[r][c];if(!t||t.x||t.comet||t.lvl!==1)continue;
+    const d=Math.hypot(r-pt.r,c-pt.c);n++;
+    setTimeout(()=>{if(grid[r][c]!==t)return;const old=els.get(t.id);if(old){old.remove();els.delete(t.id)}
+      const nt={id:nextId++,r,c,lvl:2,comet:false};grid[r][c]=nt;mk(nt,"pop");burst(nt,"")},120+d*120)}
+  setTimeout(()=>toast(n?"Pulsar : "+n+" poussière"+(n>1?"s":"")+" → caillou"+(n>1?"x":""):"Pulsar !"),200);
+  setTimeout(saveGame,700);
+}
 /* Nouvel univers : plateau vide, masse conservée, points multipliés */
 function nextUniverse(n){
   universe=n;renderUni();
@@ -688,6 +752,15 @@ const card=document.getElementById("card"),cardBg=document.getElementById("cardB
 const cardQueue=[];
 function showCard(l,discovered){
   const art=document.getElementById("cardArt");art.innerHTML="";
+  if(typeof l==="string"&&XINFO[l]){
+    const xi=XINFO[l],src=window.SPRITES&&SPRITES[l];
+    if(src){const c=document.createElement("canvas");c.width=c.height=src.width;c.getContext("2d").drawImage(src,0,0);art.appendChild(c)}
+    document.getElementById("cardEyebrow").textContent=discovered?"Astre exotique découvert":"Astres exotiques";
+    document.getElementById("cardLvl").textContent="Exotique · dès l'univers "+xi.from;
+    document.getElementById("cardName").textContent=xi.name;
+    document.getElementById("cardFact").textContent=xi.fact+" "+xi.rule;
+    card.hidden=false;cardBg.hidden=false;document.getElementById("cardBtn").focus({preventScroll:true});return;
+  }
   const src=window.SPRITES&&SPRITES[l===0?"c":l];
   if(src){const c=document.createElement("canvas");c.width=c.height=src.width;c.getContext("2d").drawImage(src,0,0);art.appendChild(c)}
   document.getElementById("cardEyebrow").textContent=discovered?"Nouvel astre découvert":"Catalogue des astres";
@@ -714,6 +787,10 @@ tip.addEventListener("pointerdown",e=>e.stopPropagation());
 tip.addEventListener("click",()=>{tip.hidden=true;tip.dataset.sticky=""});
 function hideTip(){if(!tip.hidden&&tip.dataset.sticky!=="1"){tip.hidden=true}}
 
+function discoverX(k){
+  if(seen.has(k))return;seen.add(k);try{localStorage.setItem("orbite-seen",JSON.stringify([...seen]))}catch(e){}
+  renderChain();queueCard(k);[0,.1,.2,.3].forEach((w,i)=>tone([523,698,880,1175][i],.3,.08,"triangle",w));buzz([15,40,25])
+}
 function discover(l){
   if(!seen.has(l)){seen.add(l);try{localStorage.setItem("orbite-seen",JSON.stringify([...seen]))}catch(e){}renderChain();if(l>2&&l<MAX){queueCard(l);[0,.09,.18].forEach((w,i)=>tone([659,784,1047][i],.25,.09,"triangle",w));buzz([15,40,25])}}
 }
@@ -731,9 +808,9 @@ function move(dir){
     for(const t of line){
       const last=out[out.length-1];
       if(last&&!last.fresh&&canMerge(last,t)){
-        const lvl=last.comet?t.lvl+1:t.comet?last.lvl+1:last.lvl+1;
+        const ja=jokerUp(last),jb=jokerUp(t),lvl=ja?t.lvl+ja:jb?last.lvl+jb:last.lvl+1;
         const nt={id:nextId++,lvl:Math.min(lvl,MAX),comet:false,fresh:true,srcs:[last,t]};
-        if(last.comet||t.comet)nt.cometUsed=true;
+        if(last.comet||t.comet)nt.cometUsed=true;if(last.x==="pul"||t.x==="pul")nt.pulsar=true;if(last.x==="neb"||t.x==="neb")nt.nebula=true;
         out[out.length-1]=nt;gain+=2**nt.lvl;moved=true;
       }else out.push(t);
     }
@@ -752,11 +829,13 @@ function move(dir){
   for(const s of removed){const d=els.get(s.id);if(d)pos(d,s)}
   setTimeout(()=>{
     for(const s of removed){const d=els.get(s.id);if(d){d.remove();els.delete(s.id)}}
-    let top=0,cometUsedThisMove=false;movesCount++;
+    let top=0,cometUsedThisMove=false,pulsars=[];movesCount++;
     for(const t of born){
-      const viaComet=!!t.cometUsed;
+      const viaComet=!!t.cometUsed;if(t.pulsar){pulsars.push(t);delete t.pulsar}if(t.nebula){delete t.nebula;setTimeout(()=>toast("Nébuleuse : +2 niveaux !"),150)}
       if(t.cometUsed){delete t.cometUsed;cometUsedThisMove=true;if(mode==="free"&&undos<3){undos++;syncUndo();setTimeout(()=>toast("Comète utilisée : +1 annulation"),200)}}
       delete t.srcs;delete t.fresh;mk(t,t.lvl>=9&&t.lvl<MAX?"pop star":"pop");burst(t,"+"+Math.round(2**t.lvl*uniMult()));impact(t,t.lvl,viaComet);top=Math.max(top,t.lvl);topLvl=Math.max(topLvl,t.lvl);discover(t.lvl)}
+    tickDark();
+    for(const pt of pulsars)pulsarWave(pt);
     if(top){tone(196*Math.pow(2,top/4),.16,.11,"sine",0,262*Math.pow(2,top/4));buzz(top>=8?30:12);if(top>=8&&top<MAX)shake(false)}
     setScore(score+Math.round(gain*uniMult()));
     if(mode==="daily")checkMissions({merges:born.length,comet:cometUsedThisMove});
@@ -792,7 +871,7 @@ ovCancel.onclick=()=>{overlay.hidden=true;if(ovMode==="over")undo()};
 /* --- annulation --- */
 let undos=1,prev=null;
 const undoBtn=document.getElementById("undoBtn");
-function snapshot(){return{tiles:grid.flat().filter(Boolean).map(t=>({r:t.r,c:t.c,lvl:t.lvl,comet:t.comet})),score}}
+function snapshot(){return{tiles:grid.flat().filter(Boolean).map(t=>({r:t.r,c:t.c,lvl:t.lvl,comet:t.comet,x:t.x,ttl:t.ttl})),score}}
 function syncUndo(){document.getElementById("undoCount").textContent=mode==="daily"?"–":undos;undoBtn.disabled=mode==="daily"||!(undos>0&&prev);undoBtn.setAttribute("aria-label","Annuler le dernier coup ("+undos+" restante"+(undos>1?"s":"")+")")}
 function undo(){
   if(busy||!prev||undos<=0||mode==="daily")return;
@@ -932,6 +1011,13 @@ function renderChain(){
     if(seen.has(l)){d.tabIndex=0;d.setAttribute("role","button");d.setAttribute("aria-label","Fiche : "+NAMES[l]);d.onclick=()=>showCard(l,false);d.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();showCard(l,false)}}}
     chainEl.appendChild(d);
   }
+  const xc=document.getElementById("xchain");
+  if(xc){xc.innerHTML="";for(const k of XKEYS){const d=document.createElement("div");const ok=seen.has(k);
+    d.className="chip x-"+k+(ok?"":" locked");
+    d.innerHTML=`<div class="face"><div class="body"></div><div class="name">${ok?XINFO[k].name:"Univers "+XINFO[k].from}</div></div>`;sprite(d,k);
+    if(ok){d.tabIndex=0;d.setAttribute("role","button");d.setAttribute("aria-label","Fiche : "+XINFO[k].name);d.onclick=()=>showCard(k,false);d.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();showCard(k,false)}}}
+    xc.appendChild(d)}
+    document.getElementById("xCount").textContent=XKEYS.filter(k=>seen.has(k)).length+"/3"}
   const n=list.filter(l=>seen.has(l)).length;
   document.getElementById("catCount").textContent=n+"/"+MAX;
   const mini=document.getElementById("catMini");mini.innerHTML="";
@@ -1033,7 +1119,7 @@ function newGame(){
 function restore(s){
   tilesEl.innerHTML="";els.clear();over=false;busy=false;overlay.hidden=true;
   grid=[[null,null,null,null],[null,null,null,null],[null,null,null,null],[null,null,null,null]];
-  for(const t of s.tiles){const n={id:nextId++,r:t.r,c:t.c,lvl:t.lvl,comet:t.comet};grid[n.r][n.c]=n;mk(n)}
+  for(const t of s.tiles){const n={id:nextId++,r:t.r,c:t.c,lvl:t.lvl,comet:t.comet};if(t.x){n.x=t.x;if(t.x==="dark")n.ttl=t.ttl||DARK_TTL}grid[n.r][n.c]=n;mk(n)}
   wonShown=!!s.wonShown;topLvl=Math.max(1,...s.tiles.map(t=>t.lvl||1));score=0;setScore(s.score||0);if(s.undos!=null)undos=s.undos;
 }
 
