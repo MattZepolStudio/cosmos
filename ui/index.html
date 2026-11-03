@@ -179,6 +179,12 @@ button{font:inherit;cursor:pointer}
 .ranks canvas{width:34px;height:34px;display:block}
 .ranks .who{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
 .ranks .who small{display:block;font-family:var(--mono);font-size:.62rem;color:var(--muted)}
+.grade{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;font-family:var(--mono);font-size:.58rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;vertical-align:2px;white-space:nowrap}
+.g-nova{background:linear-gradient(90deg,#ffe2b0,#ffb35c);color:#2a1400}
+.g-supernova{background:linear-gradient(90deg,#ffb08a,#ff4a6a);color:#2a0008;box-shadow:0 0 8px #ff4a6a66}
+.g-quasar{background:linear-gradient(90deg,#9fe4ff,#7a6bff);color:#06062a;box-shadow:0 0 10px #7a6bff88}
+.g-createur{background:linear-gradient(90deg,#ffffff,#ffd25a,#ff7ac6,#7fe3ff);background-size:200% 100%;color:#1a1030;box-shadow:0 0 12px #ffffff88;animation:gshine 4s linear infinite}
+@keyframes gshine{to{background-position:200% 0}}
 .ranks .pts{font-family:var(--mono);font-weight:700;font-variant-numeric:tabular-nums}
 .fx{position:absolute;inset:0;pointer-events:none;overflow:visible;z-index:3}
 #fxc{position:absolute;left:-20%;top:-20%;width:140%;height:140%}
@@ -289,7 +295,7 @@ button{font:inherit;cursor:pointer}
 .chip.locked::after{content:"?";position:absolute;font-family:var(--mono);color:var(--muted);font-size:.8rem}
 .rules{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px;font-size:.86rem;line-height:1.4;color:var(--muted)}
 .rules b{color:var(--ink)}
-@media (prefers-reduced-motion:reduce){.x-pul .body canvas{animation:none!important}.tile{transition:none}.face,.board,.plus,.ring,.sheet,.card,.tip,.cardArt canvas{animation:none!important}}
+@media (prefers-reduced-motion:reduce){.g-createur{animation:none!important}.x-pul .body canvas{animation:none!important}.tile{transition:none}.face,.board,.plus,.ring,.sheet,.card,.tip,.cardArt canvas{animation:none!important}}
 </style>
 
 <div class="uni-sky" id="uniSky" aria-hidden="true"></div>
@@ -364,6 +370,7 @@ button{font:inherit;cursor:pointer}
     <li class="before-bh"><b>Et après la géante bleue ?</b> Ça, c'est à toi de le découvrir…</li>
     <li class="after-bh" hidden><b>Deux géantes bleues</b> s'effondrent en trou noir : il avale tout le jeu.</li>
     <li class="after-bh" hidden><b>Astres exotiques</b> : dès l'univers 2, la matière noire bloque une case quelques coups (de plus en plus souvent et longtemps) ; dès le 3e, la nébuleuse fait monter un astre de 2 niveaux ; dès le 4e, le pulsar change toutes les poussières en cailloux.</li>
+    <li><b>Grades</b> : au-delà d'un million de masse, ton pseudo gagne un grade : Nova (1 M), Supernova (2,5 M), Quasar (5 M), puis Créateur d'univers (10 M).</li>
     <li class="after-bh" hidden><b>En partie libre</b>, continue dans un nouvel univers : ta masse est gardée et les fusions rapportent plus (jusqu'à ×3), mais des débris t'attendent et les comètes se font rares.</li>
   </ul>
 </section>
@@ -377,7 +384,7 @@ button{font:inherit;cursor:pointer}
     <button type="button" id="tDaily" aria-pressed="true">Défi du jour</button>
     <button type="button" id="tAll" aria-pressed="false">Général</button>
   </div>
-  <div class="pseudoNow" id="pseudoNow" hidden><span class="avatar" id="pseudoInit" aria-hidden="true"></span><span class="pn"><small>Ton pseudo</small><b id="pseudoShown"></b></span><button class="editBtn" id="pseudoEdit" type="button" aria-label="Modifier mon pseudo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg>Modifier</button></div>
+  <div class="pseudoNow" id="pseudoNow" hidden><span class="avatar" id="pseudoInit" aria-hidden="true"></span><span class="pn"><small>Ton pseudo</small><b><span id="pseudoShown"></span><span id="pseudoGrade"></span></b></span><button class="editBtn" id="pseudoEdit" type="button" aria-label="Modifier mon pseudo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg>Modifier</button></div>
   <form class="pseudo" id="pseudoForm" hidden>
     <label for="pseudo" id="pseudoLbl">Choisis ton pseudo pour apparaître dans le classement</label>
     <div class="pseudoRow"><input id="pseudo" maxlength="16" autocomplete="off" spellcheck="false" placeholder="3 à 16 caractères"><button class="btn ghost" id="pseudoCancel" type="button" hidden>Annuler</button><button class="btn" type="submit">Valider</button></div>
@@ -385,7 +392,7 @@ button{font:inherit;cursor:pointer}
   </form>
   <p class="rankNote" id="rankNote">Chargement du classement…</p>
   <ol class="ranks" id="ranks"></ol>
-  <button class="myline" id="myLine" type="button" hidden><span class="pos" id="myPos"></span><span class="who">Toi<small id="myWho"></small></span><span class="pts" id="myPts"></span></button>
+  <button class="myline" id="myLine" type="button" hidden><span class="pos" id="myPos"></span><span class="who">Toi<span id="myGrade"></span><small id="myWho"></small></span><span class="pts" id="myPts"></span></button>
 </section>
 
 <section class="sheet" id="missSheet" hidden aria-label="Missions du jour">
@@ -891,7 +898,7 @@ function shake(big){board.classList.remove("shake","shake-big");void board.offse
 function setScore(n){
   if(n>score){scoreEl.classList.remove("bump");void scoreEl.offsetWidth;scoreEl.classList.add("bump")}
   score=n;scoreEl.textContent=score;
-  if(score>best){best=score;recordTop=Math.max(topLvl,1);recordUni=universe;try{localStorage.setItem("orbite-best",best);localStorage.setItem("orbite-top",recordTop);localStorage.setItem("orbite-uni",recordUni)}catch(e){}if(typeof schedulePush==="function")schedulePush()}
+  if(score>best){const g0=gradeFor(best),g1=gradeFor(score);if(g1&&g1!==g0&&typeof toast==="function")setTimeout(()=>{toast("Nouveau grade : "+g1.name+" !",4200);[0,.12,.24,.36].forEach((w,i)=>tone([523,784,1047,1568][i],.35,.08,"triangle",w))},400);best=score;recordTop=Math.max(topLvl,1);recordUni=universe;try{localStorage.setItem("orbite-best",best);localStorage.setItem("orbite-top",recordTop);localStorage.setItem("orbite-uni",recordUni)}catch(e){}if(typeof schedulePush==="function")schedulePush()}
   if(mode==="daily"&&score>dayBest){dayBest=score;dayTop=Math.max(topLvl,1);saveDay();if(typeof schedulePush==="function")schedulePush()}
   bestEl.textContent=mode==="daily"?dayBest:best;
 }
@@ -1065,6 +1072,10 @@ function standing(tab){
   const list=tab==="daily"?dayRows:rows,i=myId?list.findIndex(r=>r.id===myId):-1;
   return i>=0?{rank:i+1,score:+list[i].best||0}:{rank:null,score:0};
 }
+/* grades à partir du million de masse (record général) */
+const GRADES=[{min:10e6,name:"Créateur d'univers",cls:"createur"},{min:5e6,name:"Quasar",cls:"quasar"},{min:2.5e6,name:"Supernova",cls:"supernova"},{min:1e6,name:"Nova",cls:"nova"}];
+const gradeFor=v=>GRADES.find(g=>+v>=g.min)||null;
+function gradeEl(v){const g=gradeFor(v);if(!g)return null;const e=document.createElement("span");e.className="grade g-"+g.cls;e.textContent=g.name;e.title="Grade : "+g.name+" (record de plus de "+(g.min/1e6).toLocaleString("fr-FR")+" million"+(g.min>1e6?"s":"")+")";return e}
 const ordinal=n=>n===1?"1er":n+"e";
 let scrollToMe=0; /* moment où l'on a demandé à se placer sur sa ligne (ouverture, changement d'onglet) */
 async function renderRank(){
@@ -1078,6 +1089,7 @@ async function renderRank(){
   pseudoForm.hidden=!askPseudo;
   pseudoNow.hidden=!(pseudo&&!editingPseudo);
   document.getElementById("pseudoShown").textContent=pseudo;
+  {const pg=document.getElementById("pseudoGrade");pg.innerHTML="";const ge=gradeEl(Math.max(best,(window.__me&&+window.__me.best)||0));if(ge)pg.appendChild(ge)}
   document.getElementById("pseudoInit").textContent=pseudo?[...pseudo.trim()][0].toUpperCase():"";
   document.getElementById("pseudoCancel").hidden=!(pseudo&&editingPseudo);
   document.getElementById("pseudoLbl").textContent=pseudo?"Nouveau pseudo":"Choisis ton pseudo pour apparaître dans le classement";
@@ -1101,6 +1113,7 @@ async function renderRank(){
     const nm=document.createElement("span");nm.className="who";
     const name=(typeof r.name==="string"&&r.name.trim())||"Joueur";
     nm.textContent=r.id===myId?name+" (toi)":name;
+    if(rankTab!=="daily"){const g=gradeEl(r.best);if(g)nm.appendChild(g)}
     const sm=document.createElement("small");sm.textContent=(uniRow?"Univers "+r.uni:NAMES[Math.min(MAX,Math.max(1,+r.top||1))])+(rankTab==="daily"&&typeof r.done==="number"?" · missions "+r.done+"/3"+(+r.streak>1?" · 🔥"+r.streak:""):"");nm.appendChild(sm);
     const pts=document.createElement("span");pts.className="pts";pts.textContent=Math.floor(+r.best||0);
     li.append(pos,art,nm,pts);ranksEl.appendChild(li);
@@ -1110,6 +1123,7 @@ async function renderRank(){
   if(!line.hidden){
     document.getElementById("myPos").textContent=ordinal(st.rank);
     document.getElementById("myWho").textContent=(pseudo||"")+(st.rank>30?" · hors du top 30":"");
+    const mg=document.getElementById("myGrade");mg.innerHTML="";const ge=gradeEl(Math.max(best,(window.__me&&+window.__me.best)||0));if(ge)mg.appendChild(ge);
     document.getElementById("myPts").textContent=Math.floor(st.score);
   }
   if(scrollToMe){const mine=ranksEl.querySelector("li.me");

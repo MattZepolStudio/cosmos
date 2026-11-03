@@ -56,6 +56,7 @@ Dépendances : `lb-phone`, `oxmysql`.
   Le record affiché dans l'appli vient du serveur.
 - **Deux classements** : général (meilleur score de tous les temps) et défi du jour
   (meilleur essai de la journée, avec les missions réussies).
+- **Grades** à côté du pseudo à partir d'un million de masse : Nova (1 M), Supernova (2,5 M), Quasar (5 M), Créateur d'univers (10 M).
 - Pour retirer un pseudo inapproprié : `UPDATE cosmos_scores SET pseudo = NULL WHERE pseudo = '...';`
 
 ## Réglages (`config.lua`)
