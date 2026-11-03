@@ -1189,6 +1189,12 @@ async function refreshBoard(){
 }
 db=true;
 if(typeof onNuiEvent==="function")onNuiEvent("cosmos:board",()=>refreshBoard());
+/* version web uniquement : petit signal toutes les 2 minutes quand l'appli est à l'écran, pour les statistiques « en train de jouer » */
+if(document.documentElement.classList.contains("web")){
+  const beat=()=>{if(!document.hidden)nui("ping",{})};
+  setInterval(beat,120000);
+  document.addEventListener("visibilitychange",()=>{if(!document.hidden)beat()});
+}
 
 function renderChain(){
   chainEl.innerHTML="";

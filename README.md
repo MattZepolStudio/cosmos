@@ -186,6 +186,18 @@ Sans ces variables, le classement est écrit dans `web/.data/cosmos.json`.
 - Le score reste calculé sur le téléphone : ces mesures bloquent les scripts et
   protègent la base, pas un tricheur déterminé.
 
+### Statistiques (qui joue en ce moment)
+
+1. Dans Render, ajoute la variable `COSMOS_ADMIN_PASSWORD` avec un mot de passe de ton choix.
+2. Ouvre `https://<ton-adresse>.onrender.com/admin` et entre ce mot de passe
+   (n'importe quel nom d'utilisateur).
+
+La page affiche les joueurs **en train de jouer** (appli ouverte à l'écran depuis moins de
+3 minutes), et pour aujourd'hui et les 7 derniers jours : joueurs actifs, nouveaux joueurs,
+joueurs ayant battu leur record, joueurs du défi du jour. Elle se met à jour toute seule.
+Sans la variable, la page n'existe pas. Après 10 mauvais mots de passe, elle est bloquée
+une heure pour cette connexion. Les données brutes sont aussi en JSON sur `/admin/stats.json`.
+
 ### Lancer en local
 
 ```
