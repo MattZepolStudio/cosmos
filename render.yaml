@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: cosmos
+    runtime: node
+    plan: free
+    buildCommand: cd web && npm install
+    startCommand: cd web && npm start
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Optionnel, pour que le classement survive aux redémarrages du plan gratuit :
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false

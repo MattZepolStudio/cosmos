@@ -2,8 +2,13 @@
   <img src="docs/logo.png" alt="Cosmos" width="320">
 </p>
 
-<p align="center"><b>Un jeu de fusion spatial pour lb-phone (FiveM).</b><br>
+<p align="center"><b>Un jeu de fusion spatial pour lb-phone (FiveM) et pour le web.</b><br>
 Fais grandir la poussière jusqu'au trou noir.</p>
+
+Deux versions dans ce dépôt, avec le même jeu (`ui/index.html`) :
+
+- **FiveM / lb-phone** : la racine du dépôt est la ressource ([installation](#installation)).
+- **Web, sur ton téléphone** : le dossier `web/`, prêt pour Render.com ([déploiement](#version-web-sur-rendercom)).
 
 ![Aperçu de Cosmos : plateau de jeu, défi du jour, découverte d'un astre et catalogue](docs/apercu.png)
 
@@ -17,9 +22,11 @@ et fusionnent en l'astre suivant, de la poussière jusqu'au trou noir.
 | <img src="docs/jeu.png" alt="Plateau de jeu avec effets de fusion" width="260"> | **12 astres à faire évoluer**<br>Poussière, caillou, astéroïde, lune, planète naine, planète rouge, planète océan, géante gazeuse, naine rouge, soleil, géante bleue, puis trou noir.<br><br>**La comète** est un joker : elle fait monter n'importe quel astre d'un niveau et rapporte une annulation.<br><br>**Le trou noir** naît de deux géantes bleues : c'est la fin du cycle cosmique : il aspire tout le jeu en spirale, l'écran reste noir quelques secondes, puis un message de félicitations affiche la masse finale.<br><br>Chaque fusion a son animation : éclats de roche, anneau de matière pour la géante gazeuse, allumage des étoiles, implosion du trou noir. |
 | <img src="docs/defi-du-jour.png" alt="Défi du jour et ses missions" width="260"> | **Défi du jour**<br>Chaque jour, tout le serveur joue exactement la même partie, avec les mêmes apparitions d'astres.<br><br>3 missions tirées au sort pour la journée (former une planète rouge, faire 3 fusions en un coup…), pas d'annulation, et un classement dédié qui affiche les missions réussies. |
 | <img src="docs/decouverte.png" alt="Carte de découverte d'un nouvel astre" width="260"> | **Découvertes**<br>Chaque nouvel astre s'affiche en grand avec une vraie anecdote d'astronomie. |
-| <img src="docs/catalogue.png" alt="Catalogue des astres et règles" width="260"> | **Catalogue des astres**<br>Les astres découverts se débloquent un à un, et on peut relire leur fiche à tout moment.<br><br>**Classements** : général et du jour, pour tous les joueurs du serveur, avec le nom RP ou un pseudo. |
+| <img src="docs/catalogue.png" alt="Catalogue des astres et règles" width="260"> | **Catalogue des astres**<br>Les astres découverts se débloquent un à un, et on peut relire leur fiche à tout moment.<br><br>**Classements** : général et du jour, pour tous les joueurs, avec le pseudo choisi par chacun. |
 
 ## Installation
+
+Version FiveM / lb-phone.
 
 1. Clone ce dépôt dans tes ressources (le dossier doit s'appeler `cosmos`) :
    ```
@@ -114,7 +121,59 @@ end
 - **Triche** : le score est calculé dans le téléphone. Les garde-fous serveur
   limitent les abus évidents, pas un joueur déterminé.
 
-## Tester dans un navigateur
+## Version web sur Render.com
 
-Ouvre `ui/index.html` via un petit serveur local (par ex. `npx serve ui`).
-Hors du téléphone, un mode démo garde le classement dans le navigateur.
+Le dossier `web/` contient un petit serveur Node **sans aucune dépendance** qui sert
+le jeu et un classement partagé entre tous ceux qui jouent au lien.
+C'est le même fichier de jeu que dans le téléphone FiveM : un pont (`web/public/web-bridge.js`)
+remplace les appels au serveur FiveM par des appels à ce serveur.
+
+### Déployer
+
+**Blueprint (le plus simple)**
+1. Sur [dashboard.render.com](https://dashboard.render.com), clique sur **New +** > **Blueprint**.
+2. Choisis le dépôt **`MattZepolStudio/cosmos`**.
+3. Render lit `render.yaml` et prépare le service `cosmos`. Laisse les deux variables
+   Upstash vides pour l'instant (voir plus bas) et clique sur **Apply**.
+
+**Web Service manuel**
+- **Runtime** : `Node` · **Plan** : `Free`
+- **Build Command** : `cd web && npm install`
+- **Start Command** : `cd web && npm start`
+- **Health Check Path** : `/healthz`
+
+Ton jeu est ensuite en ligne à une adresse du type `https://cosmos-xxxx.onrender.com`.
+
+### Installer sur le téléphone
+
+Ouvre l'adresse dans Chrome (Android) ou Safari (iPhone), puis
+**menu ⋮ > Ajouter à l'écran d'accueil** (Safari : **Partager > Sur l'écran d'accueil**).
+Cosmos s'ouvre alors en plein écran avec son icône, comme une vraie appli,
+et reste jouable sans réseau (seul le classement a besoin du serveur).
+
+### Garder le classement
+
+Le plan gratuit de Render efface le disque à chaque redémarrage ou déploiement.
+Pour garder pseudos et scores, comme pour JoSky :
+1. Crée une base Redis gratuite sur [upstash.com](https://upstash.com).
+2. Dans Render, renseigne `UPSTASH_REDIS_REST_URL` et `UPSTASH_REDIS_REST_TOKEN`.
+
+Sans ces variables, le classement est écrit dans `web/.data/cosmos.json`.
+
+### Bon à savoir
+
+- Le plan gratuit met le serveur en veille après 15 min sans visite :
+  la première ouverture peut prendre jusqu'à ~50 s pour le classement.
+  Le jeu, lui, se lance tout de suite une fois installé.
+- Chaque téléphone reçoit un identifiant secret, gardé dans le navigateur.
+  Effacer les données du navigateur crée un nouveau joueur (il faudra un autre pseudo).
+- Mots interdits dans les pseudos : variable `COSMOS_BANNED_WORDS`
+  (liste séparée par des virgules, par défaut `admin,staff,modo`).
+
+### Lancer en local
+
+```
+cd web
+npm start
+```
+puis ouvre http://localhost:3000.

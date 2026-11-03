@@ -121,13 +121,13 @@ end)
 
 RegisterNetEvent("cosmos:setPseudo", function(id, data)
     local src = source
-    if tooSoon(src, "pseudo") then return reply(src, id, { ok = false, error = "cooldown" }) end
     local pseudo = cleanPseudo(type(data) == "table" and data.pseudo or nil)
     if not pseudo then return reply(src, id, { ok = false, error = "invalid" }) end
 
     local key = Config.GetPlayerKey(src)
     local owner = MySQL.scalar.await("SELECT player_key FROM cosmos_scores WHERE pseudo = ?", { pseudo })
     if owner and owner ~= key then return reply(src, id, { ok = false, error = "taken" }) end
+    if tooSoon(src, "pseudo") then return reply(src, id, { ok = false, error = "cooldown" }) end
 
     local name = (Config.GetDisplayName(src) or "Joueur"):sub(1, 40)
     local ok = pcall(function()

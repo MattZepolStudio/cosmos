@@ -1,0 +1,4 @@
+/* Ajustements pour le navigateur du téléphone (la version FiveM laisse de la place à la barre du téléphone en jeu) */
+html.web { overscroll-behavior: none; }
+html.web body .app { padding-block: 12px 18px; }
+html.web body .board { width: min(100%, calc(100dvh - 210px)); }

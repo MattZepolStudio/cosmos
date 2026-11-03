@@ -804,7 +804,7 @@ async function renderRank(){
   if(rankState==="error"){rankNote.textContent="Impossible de charger le classement pour le moment.";return}
   let note=rankTab==="daily"
     ?(shown.length?"Défi du "+dayLabel+" : même partie pour tout le monde, le meilleur essai compte.":"Personne n'a encore joué le défi d'aujourd'hui. Lance « Défi du jour » pour prendre la première place.")
-    :(shown.length?"Les meilleurs scores de toute la ville, tous modes confondus.":"Personne n'a encore de score. Termine une partie pour ouvrir le classement.");
+    :(shown.length?"Les meilleurs scores de tous les joueurs, tous modes confondus.":"Personne n'a encore de score. Termine une partie pour ouvrir le classement.");
   if(!canPost)note+=" Ton score n'a pas pu être envoyé au serveur.";
   else if(!pseudo&&requirePseudo&&myId)note=(shown.length?note+" ":"")+"Tes scores sont déjà enregistrés : ils apparaîtront dès que tu auras choisi un pseudo.";
   rankNote.textContent=note;
