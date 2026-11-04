@@ -14,10 +14,22 @@
     $("sub").textContent = name === "stats" ? "Mise à jour automatique toutes les 30 secondes" : "Les modifications sont enregistrées tout de suite";
     try { history.replaceState(null, "", name === "players" ? "#joueurs" : location.pathname); } catch (e) {}
     if (name === "players" && !players) load();
+    if (name === "stats") refreshStats();
+  }
+  // recharge seulement les chiffres de l'onglet Statistiques, sans recharger toute la page
+  async function refreshStats() {
+    try {
+      const r = await fetch("/admin", { cache: "no-store" });
+      if (!r.ok) return;
+      const doc = new DOMParser().parseFromString(await r.text(), "text/html");
+      const fresh = doc.getElementById("tab-stats");
+      if (fresh) $("tab-stats").innerHTML = fresh.innerHTML;
+    } catch (e) {}
   }
   tabs.forEach(b => b.addEventListener("click", () => show(b.dataset.tab)));
   // l'onglet Statistiques se recharge tout seul ; jamais pendant qu'on gère les joueurs
-  setInterval(() => { if (current === "stats" && !document.hidden) location.reload(); }, 30000);
+  setInterval(() => { if (current === "stats" && !document.hidden) refreshStats(); }, 30000);
+  document.addEventListener("visibilitychange", () => { if (current === "stats" && !document.hidden) refreshStats(); });
 
   /* ---------- joueurs ---------- */
   let players = null, log = [], openId = null, limit = 50;
