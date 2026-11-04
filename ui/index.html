@@ -1021,16 +1021,16 @@ function move(dir){
   for(const s of removed){const d=els.get(s.id);if(d)pos(d,s)}
   setTimeout(()=>{
     for(const s of removed){const d=els.get(s.id);if(d){d.remove();els.delete(s.id)}}
-    let top=0,cometUsedThisMove=false,pulsars=[];movesCount++;
+    let top=0,cometUsedThisMove=false,pulsars=[],plain=[];movesCount++;
     for(const t of born){
-      const viaComet=!!t.cometUsed;if(t.pulsar){pulsars.push(t);delete t.pulsar}if(t.nebula){delete t.nebula;setTimeout(()=>toast("Nébuleuse : +2 niveaux !"),150)}
+      const viaComet=!!t.cometUsed;if(!viaComet)plain.push(t.lvl);if(t.pulsar){pulsars.push(t);delete t.pulsar}if(t.nebula){delete t.nebula;setTimeout(()=>toast("Nébuleuse : +2 niveaux !"),150)}
       if(t.cometUsed){delete t.cometUsed;cometUsedThisMove=true;if(mode==="free"&&undos<3){undos++;syncUndo();setTimeout(()=>toast("Comète utilisée : +1 annulation"),200)}}
       delete t.srcs;delete t.fresh;mk(t,t.lvl>=9&&t.lvl<MAX?"pop star":"pop");burst(t,"+"+Math.round(2**t.lvl*pointMult()));impact(t,t.lvl,viaComet);top=Math.max(top,t.lvl);topLvl=Math.max(topLvl,t.lvl);discover(t.lvl)}
     tickDark();
     for(const pt of pulsars)pulsarWave(pt);
     if(top){tone(196*Math.pow(2,top/4),.16,.11,"sine",0,262*Math.pow(2,top/4));buzz(top>=8?30:12);if(top>=8&&top<MAX)shake(false)}
     setScore(score+Math.round(gain*pointMult()));
-    if(mode==="daily")checkMissions({merges:born.length,comet:cometUsedThisMove,levels:born.map(t=>t.lvl)});
+    if(mode==="daily")checkMissions({merges:born.length,comet:cometUsedThisMove,levels:born.map(t=>t.lvl),plain});
     const holes=born.filter(t=>t.lvl===MAX);
     if(holes.length){
       setTimeout(()=>blackHoleFinale(holes),300);
@@ -1324,7 +1324,7 @@ const MISSIONS=(()=>{
     {id:"t2-vide",txt:"Atteins "+fmt(2000)+" de masse avec au moins 8 cases vides",test:c=>score>=2000*k&&c.empties>=8}
   ];
   const T3=[
-    {id:"t3-geante",txt:"Forme une géante gazeuse sans utiliser une seule comète de l'essai",test:()=>attempt.top>=8&&attempt.comets===0,fail:()=>attempt.comets>0,why:"une comète s'est collée à un astre",need:"comet"},
+    {id:"t3-geante",txt:"Forme une géante gazeuse en fusionnant deux planètes océan (sans comète)",test:c=>(c.plain||[]).includes(8)},
     {id:"t3-naine-rouge",txt:"Forme une naine rouge",test:()=>attempt.top>=9},
     {id:"t3-masse",txt:"Atteins "+fmt(8000)+" de masse",test:()=>score>=8000*k},
     {id:"t3-quatre",txt:"Fais 4 fusions en un seul coup",test:c=>c.merges>=4},

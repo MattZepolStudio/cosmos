@@ -1,5 +1,5 @@
 // Service worker : le jeu reste jouable sans réseau (le classement, lui, a besoin du serveur)
-const CACHE = "cosmos-v24";
+const CACHE = "cosmos-v25";
 const ASTRES = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "c", "dark", "neb", "pul"].map(k => `/img/${k}.png`);
 const PRECACHE = ["/web-bridge.js", "/web.css", "/manifest.webmanifest", "/icon-192.png", "/icon-512.png", ...ASTRES];
 
