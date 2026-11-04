@@ -298,8 +298,17 @@ button{font:inherit;cursor:pointer}
 .chip .name{font-size:.48rem}
 .chip.locked .face{filter:brightness(0) opacity(.35)}
 .chip.locked::after{content:"?";position:absolute;font-family:var(--mono);color:var(--muted);font-size:.8rem}
-.rules{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px;font-size:.86rem;line-height:1.4;color:var(--muted)}
-.rules b{color:var(--ink)}
+.howto{margin-top:14px;border-radius:14px;background:#ffffff08;box-shadow:inset 0 0 0 1px #ffffff12}
+.howto summary{list-style:none;display:flex;align-items:center;gap:8px;padding:11px 14px;cursor:pointer;font-size:.86rem;color:var(--ink);font-weight:600;min-height:44px;box-sizing:border-box}
+.howto summary::-webkit-details-marker{display:none}
+.howto summary svg{width:18px;height:18px;fill:none;stroke:var(--muted);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.howto summary .chev{margin-left:auto;transition:transform .2s}.howto[open] summary .chev{transform:rotate(180deg)}
+.howto .steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;padding:0 10px}
+.howto .steps div{display:flex;flex-direction:column;align-items:center;text-align:center;gap:2px;padding:10px 4px;border-radius:10px;background:#ffffff08}
+.howto .steps svg{width:22px;height:22px;fill:none;stroke:#ffb35c;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;margin-bottom:2px}
+.howto .steps b{font-size:.8rem;color:var(--ink)}.howto .steps span{font-size:.7rem;line-height:1.25;color:var(--muted)}
+.howto .more{list-style:none;margin:0;padding:10px 14px 12px;display:flex;flex-direction:column;gap:5px;font-size:.76rem;line-height:1.35;color:var(--muted)}
+.howto .more b{color:var(--ink);font-weight:600}
 @media (prefers-reduced-motion:reduce){.g-createur{animation:none!important}.x-pul .body canvas{animation:none!important}.tile{transition:none}.face,.board,.plus,.ring,.sheet,.card,.tip,.cardArt canvas{animation:none!important}}
 </style>
 
@@ -367,17 +376,21 @@ button{font:inherit;cursor:pointer}
   <div class="chain" id="chain"></div>
   <h3 class="xhead after-bh" hidden>Astres exotiques <b id="xCount">0/3</b></h3>
   <div class="chain xchain after-bh" id="xchain" hidden></div>
-  <h3>Comment jouer</h3>
-  <ul class="rules">
-    <li><b>Glisse le doigt</b> n'importe où pour déplacer tous les astres.</li>
-    <li><b>Deux astres identiques</b> fusionnent en l'astre suivant.</li>
-    <li><b>La comète</b> se colle à un astre et le fait monter d'un niveau. Les étoiles sont trop massives pour elle.</li>
-    <li class="before-bh"><b>Et après la géante bleue ?</b> Ça, c'est à toi de le découvrir…</li>
-    <li class="after-bh" hidden><b>Deux géantes bleues</b> s'effondrent en trou noir : il avale tout le jeu.</li>
-    <li class="after-bh" hidden><b>Astres exotiques</b> : dès l'univers 2, la matière noire bloque une case quelques coups (de plus en plus souvent et longtemps) ; dès le 3e, la nébuleuse fait monter un astre de 2 niveaux ; dès le 4e, le pulsar change toutes les poussières en cailloux.</li>
-    <li><b>Grades</b> : au-delà d'un million de masse, ton pseudo gagne un grade : Nova (1 M), Supernova (2,5 M), Quasar (5 M), puis Créateur d'univers (10 M).</li>
-    <li class="after-bh" hidden><b>En partie libre</b>, continue dans un nouvel univers : ta masse est gardée et les fusions rapportent plus (jusqu'à ×3), mais des débris t'attendent et les comètes se font rares.</li>
-  </ul>
+  <details class="howto" id="howto">
+    <summary><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.4 2.3c-.7.3-1 .8-1 1.5v.4M12 16.8v.2"/></svg>Comment jouer<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary>
+    <div class="steps">
+      <div><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h14M14 7l5 5-5 5"/></svg><b>Glisse</b><span>tous les astres bougent</span></div>
+      <div><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="7" cy="12" r="3"/><circle cx="17" cy="12" r="3"/><path d="M10.5 12h3"/></svg><b>Fusionne</b><span>2 identiques = l'astre suivant</span></div>
+      <div><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="16" cy="8" r="3"/><path d="M13.8 10.2L5 19M11 8.5L5 14.5M15.5 13L9.5 19"/></svg><b>Comète</b><span>+1 niveau, sauf les étoiles</span></div>
+    </div>
+    <ul class="more">
+      <li class="before-bh">Et après la géante bleue ? <b>À toi de le découvrir…</b></li>
+      <li class="after-bh" hidden><b>Trou noir</b> · 2 géantes bleues, et il avale tout le jeu.</li>
+      <li class="after-bh" hidden><b>Univers suivants</b> · masse gardée, fusions jusqu'à ×3, mais plus de débris et moins de comètes.</li>
+      <li class="after-bh" hidden><b>Exotiques</b> · touche-les dans le catalogue pour voir leur effet.</li>
+      <li><b>Grades</b> · Nova 1 M · Supernova 2,5 M · Quasar 5 M · Créateur 10 M</li>
+    </ul>
+  </details>
 </section>
 
 <section class="sheet" id="rankSheet" hidden aria-label="Classement">
