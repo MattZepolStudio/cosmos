@@ -15,3 +15,10 @@ services:
         sync: false
       - key: UPSTASH_REDIS_REST_TOKEN
         sync: false
+      # Optionnel, pages de stats (/admin) et JoSky sur la même page :
+      - key: COSMOS_ADMIN_PASSWORD
+        sync: false
+      - key: JOSKY_URL
+        sync: false
+      - key: JOSKY_ADMIN_PASSWORD
+        sync: false

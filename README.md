@@ -198,6 +198,17 @@ joueurs ayant battu leur record, joueurs du défi du jour. Elle se met à jour t
 Sans la variable, la page n'existe pas. Après 10 mauvais mots de passe, elle est bloquée
 une heure pour cette connexion. Les données brutes sont aussi en JSON sur `/admin/stats.json`.
 
+**JoSky sur la même page (optionnel).** Ajoute aussi dans le service Cosmos :
+
+| Variable | Valeur |
+| --- | --- |
+| `JOSKY_URL` | l'adresse de JoSky, ex. `https://josky-xxxx.onrender.com` |
+| `JOSKY_ADMIN_PASSWORD` | la même valeur que `ADMIN_PASSWORD` du service JoSky |
+
+La page `/admin` affiche alors le total des joueurs des deux jeux, puis une section JoSky
+(salons ouverts, phase de chaque partie, joueurs connectés). Si JoSky est en veille, la page
+le dit ; le simple fait de l'ouvrir le réveille, et la laisser ouverte le garde éveillé.
+
 ### Lancer en local
 
 ```
