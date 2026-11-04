@@ -286,6 +286,10 @@ function checkBot(key, p, g) {
     if (n >= 60 && Number.isFinite(cv) && cv < BOT.minCv) reasons.push("regular");
     if (m >= 50 && sc / m > BOT.maxPerMove) reasons.push("impossible");
   }
+  if (g && typeof g === "object") {
+    const tr = gameTrack.get(key), secs = tr ? (Date.now() - tr.t0) / 1000 : 0;
+    p.lastPlay = { m: clampInt(g.m, 0, 1e7), gh: clampInt(g.gh, 0, 1e7), cv: Number(g.cv) || 0, s: clampInt(g.s, 0, CONFIG.maxScore), rate: tr && secs > 30 ? Math.round((clampInt(g.m, 0, 1e7) - tr.m0) / secs * 10) / 10 : null, at: Date.now() };
+  }
   if (!reasons.length) return;
   const f = p.flag || (p.flag = { at: Date.now(), reasons: [] });
   for (const r of reasons) if (!f.reasons.includes(r)) f.reasons.push(r);
@@ -437,7 +441,7 @@ function playersList() {
   const rank = new Map(ranked.map(([id], i) => [id, i + 1]));
   return Object.entries(data.players)
     .filter(([, p]) => p.pseudo || p.best > 0)
-    .map(([id, p]) => ({ id, flag: p.flag ? p.flag.reasons.map(r => BOT_REASONS[r] || r) : null, trusted: !!p.trusted, pseudo: p.pseudo || null, best: p.best || 0, uni: p.uni || 1, rank: rank.get(id) || null, seen: p.updatedAt || 0, online: (presence.get(id) || 0) >= Date.now() - ONLINE_MS, dayBest: day[id]?.best || 0, done: day[id]?.done || 0, streak: streakOf(id, today()) }))
+    .map(([id, p]) => ({ id, play: p.lastPlay || null, flagAt: p.flag?.at || null, flag: p.flag ? p.flag.reasons.map(r => BOT_REASONS[r] || r) : null, trusted: !!p.trusted, pseudo: p.pseudo || null, best: p.best || 0, uni: p.uni || 1, rank: rank.get(id) || null, seen: p.updatedAt || 0, online: (presence.get(id) || 0) >= Date.now() - ONLINE_MS, dayBest: day[id]?.best || 0, done: day[id]?.done || 0, streak: streakOf(id, today()) }))
     .sort((a, b) => b.best - a.best);
 }
 function bumpRev(p) { p.rev = (p.rev || 0) + 1; p.updatedAt = Date.now(); }
@@ -603,6 +607,7 @@ input{width:100%}input:focus{outline:2px solid #6f7cff;outline-offset:1px}
 .flagbar{all:unset;box-sizing:border-box;display:flex;flex-direction:column;gap:2px;width:100%;padding:12px 14px;border-radius:14px;background:#3a2a14;box-shadow:inset 0 0 0 1.5px #ffb35c;cursor:pointer;color:var(--ink)}
 .flagbar span{color:#e8c9a0;font-size:.82rem}.flagbar.on{background:var(--panel);box-shadow:none;text-align:center;font-weight:600}.flagbar[hidden]{display:none}
 .why{background:#3a2a1466;border-radius:10px;padding:10px 12px;font-size:.85rem;display:flex;flex-direction:column;gap:6px}
+.why .det{color:#e9ecff;font-size:.8rem}.why .det b{color:#ffd9a8}
 .why ul{margin:0;padding-left:18px;color:#e8c9a0;display:block}.why li{background:none;padding:0;border-radius:0}.why p{margin:0;color:var(--muted);font-size:.8rem}
 #toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#e9ecff;color:#0b0d1a;padding:10px 16px;border-radius:12px;font-weight:600;max-width:calc(100% - 32px);box-shadow:0 8px 30px #000a;transition:opacity .2s;pointer-events:none}
 #toast.err{background:#ff9fb0}#toast[hidden]{display:block;opacity:0}

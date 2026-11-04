@@ -57,7 +57,8 @@
 <span class="nm"><b>${name}${p.online ? '<i class="on-dot" title="En train de jouer"></i>' : ""}</b><small>Univers ${p.uni}${day} · ${ago(p.seen)}</small></span>
 <span class="sc">${fmt(p.best)}</span></button>
 <div class="acts">
-${p.flag ? `<div class="why"><b>Pourquoi ce score est mis de côté :</b><ul>${p.flag.map(r => `<li>${esc(r)}</li>`).join("")}</ul><p>Il est caché du classement. Valide-le si tu connais ce joueur, sinon remets-le à 0.</p><button class="btn primary" data-do="approve">Valider ce score</button></div>` : ""}
+${p.flag ? `<div class="why"><b>Pourquoi ce score est mis de côté :</b><ul>${p.flag.map(r => `<li>${esc(r)}</li>`).join("")}</ul>${p.play ? `<p class="det">Dernière partie envoyée : <b>${fmt(p.play.m)} coups</b>, dont <b>${fmt(p.play.gh)} sans toucher</b> (${p.play.m ? Math.round(p.play.gh / p.play.m * 100) : 0} %) · régularité ${p.play.cv >= 1 ? "normale" : String(p.play.cv).replace(".", ",") + (p.play.cv < 0.12 ? " (machine)" : p.play.cv < 0.3 ? " (assez régulier)" : " (humain)")}${p.play.rate != null ? ` · ${String(p.play.rate).replace(".", ",")} coups/s` : ""} · masse ${fmt(p.play.s)}. Signalé ${ago(p.flagAt)}.</p>` : ""}
+<p>Il est caché du classement. Valide-le si tu connais ce joueur, sinon remets-le à 0.</p><button class="btn primary" data-do="approve">Valider ce score</button></div>` : ""}
 <form class="row" data-do="setScore"><input type="number" inputmode="numeric" min="0" step="1" value="${p.best}" aria-label="Nouveau score"><button class="btn primary">Changer le score</button></form>
 <form class="row" data-do="rename"><input type="text" maxlength="16" value="${p.pseudo ? esc(p.pseudo) : ""}" placeholder="Nouveau pseudo" aria-label="Nouveau pseudo"><button class="btn">Renommer</button></form>
 <div class="btns">
