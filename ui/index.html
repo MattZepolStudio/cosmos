@@ -137,6 +137,7 @@ button{font:inherit;cursor:pointer}
 .missions li{display:flex;align-items:center;gap:10px;background:var(--panel);border-radius:12px;padding:10px 12px;font-size:.92rem}
 .missions .chk{flex:none;width:22px;height:22px;border-radius:50%;box-shadow:inset 0 0 0 2px #ffffff30;display:grid;place-items:center;font-size:.8rem;font-weight:800}
 .missions li.ok{color:var(--muted)}
+.missions li.ko{color:var(--muted)}.missions li.ko .chk{background:#5a1f2c;box-shadow:none;color:#ffb3c0}.missions li.ko small{display:block;margin-top:2px;font-size:.76rem;color:#ff9fb0}
 .missions .mtxt{flex:1;min-width:0}
 .missions .stars{flex:none;color:var(--flare);font-size:.8rem;letter-spacing:1px}
 .rule{display:flex;flex-direction:column;gap:3px;max-width:440px;margin:0 auto 12px;padding:10px 12px;border-radius:12px;background:linear-gradient(135deg,#2b2160,#1b2a55);box-shadow:inset 0 0 0 1px #ffffff1a;font-size:.86rem;color:#c3c9f0}
@@ -1311,23 +1312,23 @@ const MISSIONS=(()=>{
     {id:"t1-naine",txt:"Forme une planète naine",test:()=>attempt.top>=5},
     {id:"t1-masse",txt:"Atteins "+fmt(1500)+" de masse",test:()=>score>=1500*k},
     {id:"t1-duo",txt:"Fais 2 fusions en un seul coup",test:c=>c.merges>=2},
-    {id:"t1-ast",txt:"Forme un astéroïde en moins de 12 coups",test:()=>attempt.top>=3&&movesCount<=12},
+    {id:"t1-ast",txt:"Forme un astéroïde en moins de 12 coups",test:()=>attempt.top>=3&&movesCount<=12,fail:()=>movesCount>12,why:"plus de 12 coups joués"},
     {id:"t1-lunes",txt:"Forme 3 lunes dans la partie",test:()=>(attempt.formed[4]||0)>=3}
   ];
   const T2=[
     {id:"t2-ocean",txt:"Forme une planète océan",test:()=>attempt.top>=7},
     {id:"t2-masse",txt:"Atteins "+fmt(4000)+" de masse",test:()=>score>=4000*k},
     {id:"t2-trio",txt:"Fais 3 fusions en un seul coup",test:c=>c.merges>=3},
-    {id:"t2-lune",txt:"Forme une lune en moins de 24 coups",test:()=>attempt.top>=4&&movesCount<=24},
+    {id:"t2-lune",txt:"Forme une lune en moins de 24 coups",test:()=>attempt.top>=4&&movesCount<=24,fail:()=>movesCount>24,why:"plus de 24 coups joués"},
     {id:"t2-comet",txt:"Utilise une comète",test:()=>attempt.comets>=1,need:"comet"},
     {id:"t2-vide",txt:"Atteins "+fmt(2000)+" de masse avec au moins 8 cases vides",test:c=>score>=2000*k&&c.empties>=8}
   ];
   const T3=[
-    {id:"t3-geante",txt:"Forme une géante gazeuse sans utiliser de comète",test:()=>attempt.top>=8&&attempt.comets===0,need:"comet"},
+    {id:"t3-geante",txt:"Forme une géante gazeuse sans utiliser une seule comète de l'essai",test:()=>attempt.top>=8&&attempt.comets===0,fail:()=>attempt.comets>0,why:"une comète s'est collée à un astre",need:"comet"},
     {id:"t3-naine-rouge",txt:"Forme une naine rouge",test:()=>attempt.top>=9},
     {id:"t3-masse",txt:"Atteins "+fmt(8000)+" de masse",test:()=>score>=8000*k},
     {id:"t3-quatre",txt:"Fais 4 fusions en un seul coup",test:c=>c.merges>=4},
-    {id:"t3-ocean",txt:"Forme une planète océan en moins de 110 coups",test:()=>attempt.top>=7&&movesCount<=110},
+    {id:"t3-ocean",txt:"Forme une planète océan en moins de 110 coups",test:()=>attempt.top>=7&&movesCount<=110,fail:()=>movesCount>110,why:"plus de 110 coups joués"},
     {id:"t3-vide",txt:"Atteins "+fmt(3000)+" de masse avec au moins 6 cases vides",test:c=>score>=3000*k&&c.empties>=6}
   ];
   const ok=m=>m.need!=="comet"||COMET_EARLY;
@@ -1339,9 +1340,10 @@ function renderMissions(){
   document.getElementById("missTitle").textContent="Défi du "+dayLabel;
   const rb=document.getElementById("ruleBox");if(rb)rb.innerHTML="<b>Règle du jour : "+RULE.name+"</b><span>"+RULE.txt+"</span>";
   const ul=document.getElementById("missList");ul.innerHTML="";
-  MISSIONS.forEach(m=>{const li=document.createElement("li");const ok=attempt.done.includes(m.id);li.className=ok?"ok":"";
-    const k=document.createElement("span");k.className="chk";k.textContent=ok?"✓":"";
+  MISSIONS.forEach(m=>{const li=document.createElement("li");const ok=attempt.done.includes(m.id),ko=!ok&&(attempt.lost||[]).includes(m.id);li.className=ok?"ok":ko?"ko":"";
+    const k=document.createElement("span");k.className="chk";k.textContent=ok?"✓":ko?"✕":"";
     const tx=document.createElement("span");tx.className="mtxt";tx.textContent=m.txt;
+    if(ko){const w=document.createElement("small");w.textContent="Ratée pour cet essai : "+m.why+". Relance un essai pour la retenter.";tx.appendChild(w)}
     const st=document.createElement("span");st.className="stars";st.textContent="★".repeat(m.stars);st.setAttribute("aria-label",["facile","moyenne","difficile"][m.stars-1]);
     li.append(k,tx,st);ul.appendChild(li)});
   const meta=document.getElementById("missMeta");
@@ -1356,6 +1358,10 @@ function checkMissions(c){
   for(const m of MISSIONS){if(!attempt.done.includes(m.id)&&m.test(c)){attempt.done.push(m.id);gained=true;
     const all=attempt.done.length===3;
     setTimeout(()=>{if(all){const s=bumpStreak();toast("Défi du jour réussi ! 🔥 Série : "+s,4200)}else toast("Mission "+"★".repeat(m.stars)+" : "+m.txt,3600)},350)}}
+  let lost=false;attempt.lost=attempt.lost||[];
+  for(const m of MISSIONS){if(m.fail&&!attempt.done.includes(m.id)&&!attempt.lost.includes(m.id)&&m.fail()){attempt.lost.push(m.id);lost=true;
+    setTimeout(()=>toast("Mission "+"★".repeat(m.stars)+" ratée pour cet essai",3600),gained?3900:350)}}
+  if(lost)renderMissions();
   if(attempt.done.length>dayDone.length){dayDone=attempt.done.slice()}
   saveDay();
   if(gained){renderMissions();[0,.1].forEach((w,i)=>tone([784,1175][i],.22,.09,"triangle",w));buzz([20,30,20]);if(typeof schedulePush==="function")schedulePush()}
