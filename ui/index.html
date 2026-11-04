@@ -1173,7 +1173,8 @@ async function nui(name,data){
 }
 async function refreshBoard(){
   const r=await nui("getBoard",{dayKey});
-  if(!r){rankState="error";renderRank();return}
+  clearTimeout(refreshBoard.retry);
+  if(!r){rankState="error";renderRank();refreshBoard.retry=setTimeout(()=>{if(!document.hidden)refreshBoard()},30000);return}
   rankState="ok";
   myId=r.me&&r.me.id||null;
   rows=(r.all||[]).filter(x=>typeof x.best==="number");window.__allRows=rows;

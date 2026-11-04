@@ -614,7 +614,7 @@ const server = http.createServer(async (req, res) => {
   if (req.method !== "GET" && req.method !== "HEAD") return send(res, 405, "", "text/plain");
 
   if (p === "/" || p === "/index.html") {
-    try { return send(res, 200, await indexHtml(), MIME[".html"], { "Cache-Control": "no-cache" }); }
+    try { return send(res, 200, await indexHtml(), MIME[".html"], { "Cache-Control": "no-cache", "X-Cosmos-App": "1" }); }
     catch { return send(res, 500, "Jeu introuvable", "text/plain; charset=utf-8"); }
   }
   if (p.startsWith("/img/")) {
