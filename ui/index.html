@@ -146,7 +146,13 @@ button{font:inherit;cursor:pointer}
 .missions li.ok .chk{background:#3ccf6a;box-shadow:none;color:#05230f}
 .row{display:flex;gap:8px}
 .row .catBtn{min-width:0}
-.rankBtn{flex:0 0 auto;width:auto}
+.rankBtn{flex:0 0 auto;width:auto;position:relative}
+.rankBtn.needPseudo::after{content:"";position:absolute;top:6px;right:6px;width:9px;height:9px;border-radius:50%;background:var(--flare);box-shadow:0 0 0 3px var(--panel),0 0 10px var(--flare);animation:needp 2s ease-in-out infinite}
+@keyframes needp{50%{transform:scale(.7);opacity:.6}}
+.ovPseudo{display:flex;align-items:center;gap:12px;width:min(100%,300px);border:0;border-radius:14px;padding:11px 14px;background:linear-gradient(135deg,#3a2a14,#2a2150);box-shadow:inset 0 0 0 1.5px var(--flare);color:var(--ink);text-align:left;font:inherit}
+.ovPseudo svg{flex:none;width:26px;height:26px;fill:none;stroke:var(--flare);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.ovPseudo b{display:block;font-size:.95rem}.ovPseudo small{display:block;color:var(--muted);font-size:.76rem;margin-top:1px}
+.ovPseudo:focus-visible{outline:2px solid var(--nova);outline-offset:2px}
 .rankBtn svg{width:22px;height:22px;fill:none;stroke:var(--flare);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .pseudo{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
 .pseudo label{font-size:.8rem;color:var(--muted)}
@@ -309,7 +315,7 @@ button{font:inherit;cursor:pointer}
 .howto .steps b{font-size:.8rem;color:var(--ink)}.howto .steps span{font-size:.7rem;line-height:1.25;color:var(--muted)}
 .howto .more{list-style:none;margin:0;padding:10px 14px 12px;display:flex;flex-direction:column;gap:5px;font-size:.76rem;line-height:1.35;color:var(--muted)}
 .howto .more b{color:var(--ink);font-weight:600}
-@media (prefers-reduced-motion:reduce){.g-createur{animation:none!important}.x-pul .body canvas{animation:none!important}.tile{transition:none}.face,.board,.plus,.ring,.sheet,.card,.tip,.cardArt canvas{animation:none!important}}
+@media (prefers-reduced-motion:reduce){.rankBtn.needPseudo::after{animation:none!important}.g-createur{animation:none!important}.x-pul .body canvas{animation:none!important}.tile{transition:none}.face,.board,.plus,.ring,.sheet,.card,.tip,.cardArt canvas{animation:none!important}}
 </style>
 
 <div class="uni-sky" id="uniSky" aria-hidden="true"></div>
@@ -346,6 +352,7 @@ button{font:inherit;cursor:pointer}
     <div class="overlay" id="overlay" hidden>
       <h2 id="ovTitle">Plus de place</h2>
       <p id="ovText">L'espace est saturé.</p>
+      <button class="ovPseudo" id="ovPseudo" type="button" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10v4a5 5 0 0 1-10 0V4z"/><path d="M7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4M12 13v4M8 20h8"/></svg><span><b>Apparais au classement</b><small>Choisis ton pseudo, ton score est déjà gardé</small></span></button>
       <div class="ovBtns">
         <button class="btn ghost" id="ovCancel" type="button" hidden>Annuler</button>
         <button class="btn" id="ovBtn" type="button">Rejouer</button>
@@ -1038,10 +1045,15 @@ function showOverlay(title,text,btn,mode){
   document.getElementById("ovBtn").textContent=btn;
   ovCancel.hidden=!(mode==="confirm"||mode==="switch"||(mode==="over"&&undos>0&&prev));
   ovCancel.textContent=mode==="over"?"Annuler le dernier coup":"Annuler";
+  document.getElementById("ovPseudo").hidden=!(mode==="over"&&needPseudo());
   overlay.hidden=false;
 }
 document.getElementById("ovBtn").onclick=()=>{overlay.hidden=true;if(ovMode==="switch")applyMode(pendingMode);else if(ovMode==="over"||ovMode==="confirm")newGame()};
 ovCancel.onclick=()=>{overlay.hidden=true;if(ovMode==="over")undo()};
+/* pseudo pas encore choisi : on le propose à la fin de la partie, et un point le signale sur « Classement » */
+function needPseudo(){return typeof myId!=="undefined"&&!!myId&&canPost&&requirePseudo&&!pseudo&&Math.max(best,score)>0}
+function askPseudoNow(){openRank();editingPseudo=true;renderRank();setTimeout(()=>{pseudoForm.scrollIntoView({block:"nearest"});pseudoIn.focus()},300)}
+document.getElementById("ovPseudo").onclick=askPseudoNow;
 /* --- annulation --- */
 let undos=1,prev=null;
 const undoBtn=document.getElementById("undoBtn");
@@ -1099,6 +1111,8 @@ let scrollToMe=0; /* moment où l'on a demandé à se placer sur sa ligne (ouver
 async function renderRank(){
   const st0=standing(mode==="daily"?"daily":"all");
   document.getElementById("myRank").textContent=st0.rank?"#"+st0.rank:"–";
+  document.getElementById("rankBtn").classList.toggle("needPseudo",needPseudo());
+  if(!needPseudo())document.getElementById("ovPseudo").hidden=true;
   if(rankSheet.hidden)return;
   document.getElementById("tDaily").setAttribute("aria-pressed",String(rankTab==="daily"));
   document.getElementById("tAll").setAttribute("aria-pressed",String(rankTab==="all"));
