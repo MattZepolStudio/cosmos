@@ -93,7 +93,7 @@ ${p.pseudo ? '<button class="btn" data-do="unname">Retirer le pseudo</button>' :
     if (e.target.closest(".pl > button")) { openId = openId === id ? null : id; render(); return; }
     const b = e.target.closest("button[data-do]"); if (!b) return;
     const d = b.dataset.do;
-    if (d === "approve" && confirm(`Valider le score de ${who} ? Il réapparaît au classement et ce joueur ne sera plus surveillé.`)) act({ action: "approve", id }, "Score validé", b);
+    if (d === "approve" && confirm(`Valider le score de ${who} ? Il réapparaît au classement. Ses prochaines parties resteront surveillées.`)) act({ action: "approve", id }, "Score validé", b);
     if (d === "resetScore" && confirm(`Remettre le score de ${who} à 0 ?`)) act({ action: "resetScore", id }, "Score remis à 0", b);
     if (d === "clearDaily" && confirm(`Effacer le score de ${who} au défi du jour ?`)) act({ action: "clearDaily", id }, "Défi du jour effacé", b);
     if (d === "unname" && confirm(`Retirer le pseudo « ${p.pseudo} » ? Le joueur disparaît du classement jusqu'à ce qu'il en choisisse un autre.`)) act({ action: "rename", id, pseudo: "" }, "Pseudo retiré", b);

@@ -273,6 +273,8 @@ const BOT_REASONS = {
 const gameTrack = new Map(); // joueur -> { id, t0, m0 } (heure du serveur)
 function checkBot(key, p, g) {
   if (p.trusted) return;
+  // partie déjà validée à la main dans /admin : on ne la signale plus, les suivantes restent surveillées
+  if (g && typeof g === "object" && p.okGame && String(g.id || "").slice(0, 16) === p.okGame) return;
   const reasons = [];
   if (!g || typeof g !== "object") { if (today() >= BOT.dataFrom && Number(p.best) > 0) reasons.push("nodata"); }
   else {
@@ -288,7 +290,7 @@ function checkBot(key, p, g) {
   }
   if (g && typeof g === "object") {
     const tr = gameTrack.get(key), secs = tr ? (Date.now() - tr.t0) / 1000 : 0;
-    p.lastPlay = { m: clampInt(g.m, 0, 1e7), gh: clampInt(g.gh, 0, 1e7), cv: Number(g.cv) || 0, s: clampInt(g.s, 0, CONFIG.maxScore), rate: tr && secs > 30 ? Math.round((clampInt(g.m, 0, 1e7) - tr.m0) / secs * 10) / 10 : null, at: Date.now() };
+    p.lastPlay = { id: String(g.id || "").slice(0, 16), m: clampInt(g.m, 0, 1e7), gh: clampInt(g.gh, 0, 1e7), cv: Number(g.cv) || 0, s: clampInt(g.s, 0, CONFIG.maxScore), rate: tr && secs > 30 ? Math.round((clampInt(g.m, 0, 1e7) - tr.m0) / secs * 10) / 10 : null, at: Date.now() };
   }
   if (!reasons.length) return;
   const f = p.flag || (p.flag = { at: Date.now(), reasons: [] });
@@ -459,7 +461,8 @@ const ADMIN_ACTIONS = {
   resetScore({ id }) { const p = data.players[id]; if (p) delete p.flag; return ADMIN_ACTIONS.setScore({ id, best: 0 }); },
   approve({ id }) {
     const p = data.players[id]; if (!p) return "Joueur introuvable.";
-    delete p.flag; p.trusted = true; adminLog(`Score de ${p.pseudo || "anonyme"} validé (${fmtN(p.best || 0)}) : il n'est plus surveillé`);
+    delete p.flag; if (p.lastPlay?.id) p.okGame = p.lastPlay.id;
+    adminLog(`Score de ${p.pseudo || "anonyme"} validé (${fmtN(p.best || 0)}) : ses prochaines parties restent surveillées`);
   },
   clearDaily({ id }) {
     const p = data.players[id], d = data.daily[today()]; if (!p) return "Joueur introuvable.";
