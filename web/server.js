@@ -29,7 +29,7 @@ const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL;
 const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 const REDIS_KEY = process.env.COSMOS_REDIS_KEY || "cosmos:data";
 
-let data = { players: {}, daily: {}, stats: {} };
+let data = { players: {}, daily: {}, stats: {}, log: [] };
 
 async function redis(cmd) {
   const r = await fetch(UPSTASH_URL, {
@@ -62,10 +62,10 @@ function mergeInto(base, extra) {
 async function load() {
   try {
     const raw = UPSTASH_URL ? await redis(["GET", REDIS_KEY]) : await fsp.readFile(DATA_FILE, "utf8");
-    let fresh = { players: {}, daily: {}, stats: {} };
+    let fresh = { players: {}, daily: {}, stats: {}, log: [] };
     if (raw) {
       const d = JSON.parse(raw);
-      fresh = { players: d.players || {}, daily: d.daily || {}, stats: d.stats || {} };
+      fresh = { players: d.players || {}, daily: d.daily || {}, stats: d.stats || {}, log: Array.isArray(d.log) ? d.log : [] };
     }
     data = mergeInto(fresh, data);
     loaded = true;
@@ -199,7 +199,7 @@ function getBoard(key, body) {
     .map(([id, d], i) => ({ id: id === key ? "me" : "d" + (i + 1), name: data.players[id].pseudo, best: d.best, top: d.top, done: d.done, streak: d.done >= 3 ? d.streak || 1 : 0 }));
   const myDay = dayRows[key];
   return {
-    me: { id: "me", pseudo: me?.pseudo || null, best: me?.best || 0, dayBest: myDay?.best || 0, done: myDay?.done || 0, rank: myRank, dayRank: myDayRank, streak: streakOf(key, day) },
+    me: { id: "me", pseudo: me?.pseudo || null, best: me?.best || 0, dayBest: myDay?.best || 0, done: myDay?.done || 0, rank: myRank, dayRank: myDayRank, streak: streakOf(key, day), rev: me?.rev || 0 },
     requirePseudo: true,
     all,
     daily
@@ -228,6 +228,8 @@ function submitScore(key, body, ip) {
   if (!data.players[key] && !allowNewPlayer(ip)) return { ok: false, error: "busy" };
   if (!data.players[key]) dayStats().newPlayers++;
   const p = data.players[key] || (data.players[key] = { pseudo: null, best: 0, top: 1 });
+  // score modifié depuis la page admin : le jeu doit d'abord relire le classement
+  if (p.rev && Number(body.rev) !== p.rev) return { ok: false, error: "stale" };
   const best = clampInt(body.best, 0, CONFIG.maxScore);
   if (best > p.best) { if (p.best > 0) dayStats().recordBy[key.slice(0, 12)] = 1; p.best = best; p.top = clampInt(body.top, 1, 12); p.uni = clampInt(body.uni, 1, 999); }
   p.updatedAt = Date.now();
@@ -370,25 +372,111 @@ async function joskyStats() {
 }
 const esc = v => String(v).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-async function adminRoute(req, res, p) {
-  if (!ADMIN_PASSWORD) return send(res, 404, "Introuvable", "text/plain; charset=utf-8");
+function adminAuth(req, res) {
+  if (!ADMIN_PASSWORD) { send(res, 404, "Introuvable", "text/plain; charset=utf-8"); return false; }
   const ip = clientIp(req), f = adminFails.get(ip) || { n: 0, t: Date.now() };
   if (Date.now() - f.t > 3600e3) { f.n = 0; f.t = Date.now(); }
-  if (f.n >= 10) return send(res, 429, "Trop d'essais, réessaie dans une heure.", "text/plain; charset=utf-8");
+  if (f.n >= 10) { send(res, 429, "Trop d'essais, réessaie dans une heure.", "text/plain; charset=utf-8"); return false; }
   const auth = req.headers.authorization || "";
   const given = auth.startsWith("Basic ") ? Buffer.from(auth.slice(6), "base64").toString().split(":").slice(1).join(":") : "";
   const ok = given.length === ADMIN_PASSWORD.length && crypto.timingSafeEqual(Buffer.from(given), Buffer.from(ADMIN_PASSWORD));
   if (!ok) {
     if (auth) { f.n++; adminFails.set(ip, f); }
-    return send(res, 401, "Mot de passe requis", "text/plain; charset=utf-8", { "WWW-Authenticate": 'Basic realm="Stats de mes jeux", charset="UTF-8"' });
+    send(res, 401, "Mot de passe requis", "text/plain; charset=utf-8", { "WWW-Authenticate": 'Basic realm="Stats de mes jeux", charset="UTF-8"' });
+    return false;
+  }
+  return true;
+}
+
+/* ---------- gestion des joueurs (page /admin, onglet Joueurs) ---------- */
+function playersList() {
+  const day = data.daily[today()] || {};
+  const ranked = Object.entries(data.players).filter(([, p]) => p.pseudo && p.best > 0).sort((a, b) => b[1].best - a[1].best);
+  const rank = new Map(ranked.map(([id], i) => [id, i + 1]));
+  return Object.entries(data.players)
+    .filter(([, p]) => p.pseudo || p.best > 0)
+    .map(([id, p]) => ({ id, pseudo: p.pseudo || null, best: p.best || 0, uni: p.uni || 1, rank: rank.get(id) || null, seen: p.updatedAt || 0, online: (presence.get(id) || 0) >= Date.now() - ONLINE_MS, dayBest: day[id]?.best || 0, done: day[id]?.done || 0, streak: streakOf(id, today()) }))
+    .sort((a, b) => b.best - a.best);
+}
+function bumpRev(p) { p.rev = (p.rev || 0) + 1; p.updatedAt = Date.now(); }
+function adminLog(text) {
+  data.log.unshift({ at: Date.now(), text });
+  data.log.length = Math.min(data.log.length, 50);
+}
+const ADMIN_ACTIONS = {
+  setScore({ id, best }) {
+    const p = data.players[id]; if (!p) return "Joueur introuvable.";
+    const v = clampInt(best, 0, CONFIG.maxScore), old = p.best || 0;
+    p.best = v; if (!v) { p.top = 1; p.uni = 1; }
+    bumpRev(p); adminLog(`Score de ${p.pseudo || "anonyme"} : ${fmtN(old)} → ${fmtN(v)}`);
+  },
+  resetScore({ id }) { return ADMIN_ACTIONS.setScore({ id, best: 0 }); },
+  clearDaily({ id }) {
+    const p = data.players[id], d = data.daily[today()]; if (!p) return "Joueur introuvable.";
+    if (!d || !d[id]) return "Ce joueur n'a pas de score au défi du jour.";
+    delete d[id]; bumpRev(p); adminLog(`Défi du jour effacé pour ${p.pseudo || "anonyme"}`);
+  },
+  rename({ id, pseudo }) {
+    const p = data.players[id]; if (!p) return "Joueur introuvable.";
+    const old = p.pseudo;
+    if (!pseudo) { p.pseudo = null; adminLog(`Pseudo « ${old} » retiré (le joueur devra en choisir un autre)`); return; }
+    const v = cleanPseudo(pseudo); if (!v) return "Pseudo invalide : 3 à 16 caractères, lettres, chiffres, espace, tiret, point ou tiret bas.";
+    if (Object.entries(data.players).some(([k, o]) => k !== id && o.pseudo && o.pseudo.toLowerCase() === v.toLowerCase())) return "Ce pseudo est déjà pris.";
+    p.pseudo = v; adminLog(`Pseudo « ${old || "aucun"} » → « ${v} »`);
+  },
+  remove({ id }) {
+    const p = data.players[id]; if (!p) return "Joueur introuvable.";
+    const name = p.pseudo || "anonyme";
+    for (const day of Object.values(data.daily)) delete day[id];
+    // on garde une fiche vide : sinon le téléphone du joueur renverrait son ancien record
+    data.players[id] = { pseudo: null, best: 0, top: 1, rev: p.rev || 0 }; bumpRev(data.players[id]);
+    adminLog(`${name} supprimé du classement`);
+  },
+  resetDaily() {
+    const d = data.daily[today()] || {}, n = Object.keys(d).length;
+    for (const id of Object.keys(d)) if (data.players[id]) bumpRev(data.players[id]);
+    delete data.daily[today()]; adminLog(`Classement du défi du jour remis à zéro (${n} joueur${n > 1 ? "s" : ""})`);
+  },
+  resetAll({ confirm }) {
+    if (confirm !== "RESET") return "Tape RESET pour confirmer.";
+    const n = Object.keys(data.players).length;
+    for (const p of Object.values(data.players)) { p.best = 0; p.top = 1; p.uni = 1; bumpRev(p); }
+    data.daily = {}; adminLog(`Tout le classement remis à zéro (${n} joueurs, pseudos conservés)`);
+  }
+};
+async function adminApi(req, res) {
+  // l'en-tête X-Admin empêche un autre site de déclencher une action à ta place
+  if (req.method !== "POST" || req.headers["x-admin"] !== "1") return send(res, 400, "{}", MIME[".json"]);
+  let raw = "";
+  for await (const chunk of req) { raw += chunk; if (raw.length > 4096) return send(res, 413, "{}", MIME[".json"]); }
+  let body; try { body = JSON.parse(raw || "{}"); } catch { return send(res, 400, "{}", MIME[".json"]); }
+  const fn = Object.hasOwn(ADMIN_ACTIONS, body.action) && ADMIN_ACTIONS[body.action];
+  if (!fn) return send(res, 400, JSON.stringify({ ok: false, error: "Action inconnue." }), MIME[".json"]);
+  await ready;
+  if (!loaded) return send(res, 503, JSON.stringify({ ok: false, error: "Le classement n'est pas encore chargé, réessaie dans une minute." }), MIME[".json"]);
+  const err = fn(body);
+  if (err) return send(res, 200, JSON.stringify({ ok: false, error: err }), MIME[".json"]);
+  await saveNow();
+  return send(res, 200, JSON.stringify({ ok: true, players: playersList(), log: data.log }), MIME[".json"], { "Cache-Control": "no-store" });
+}
+
+async function adminRoute(req, res, p) {
+  if (!adminAuth(req, res)) return;
+  if (p === "/admin/api") return adminApi(req, res);
+  if (p === "/admin/players.json") { await ready; return send(res, 200, JSON.stringify({ players: playersList(), log: data.log }), MIME[".json"], { "Cache-Control": "no-store" }); }
+  if (p === "/admin/sauvegarde.json") {
+    await ready;
+    return send(res, 200, JSON.stringify(data), MIME[".json"], { "Cache-Control": "no-store", "Content-Disposition": `attachment; filename="cosmos-sauvegarde-${today()}.json"` });
   }
   const st = statsSnapshot();
-  if (p.endsWith(".json")) return send(res, 200, JSON.stringify(st), MIME[".json"], { "Cache-Control": "no-store" });
+  if (p === "/admin/stats.json") return send(res, 200, JSON.stringify(st), MIME[".json"], { "Cache-Control": "no-store" });
   const js = await joskyStats();
   return send(res, 200, adminHtml(st, js), MIME[".html"], { "Cache-Control": "no-store" });
 }
 const fmtN = n => Number(n).toLocaleString("fr-FR");
 const PHASES = { lobby: "Salle d'attente", initial_revealing: "Début de manche", playing: "Partie en cours", round_ended: "Fin de manche", game_over: "Partie terminée" };
+const ADMIN_JS = fs.readFileSync(path.resolve(__dirname, "admin.js"), "utf8");
+const ADMIN_PLAYERS_HTML = fs.readFileSync(path.resolve(__dirname, "admin-players.html"), "utf8");
 function adminHtml(st, js) {
   const row = w => `<tr><td>${new Date(w.day + "T12:00:00Z").toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" })}</td><td>${w.players}</td><td>${w.newPlayers}</td><td>${w.records}</td></tr>`;
   const up = s => s > 3600 ? Math.floor(s / 3600) + " h" : Math.max(1, Math.floor(s / 60)) + " min";
@@ -412,7 +500,7 @@ ${rooms ? `<ul>${rooms}</ul>` : '<p class="note">Aucun salon ouvert pour le mome
     joskyBlock = `<p class="note box">${msg}</p>`;
   }
   return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Mes jeux · Stats</title><meta http-equiv="refresh" content="30"><link rel="icon" href="/icon-192.png">
+<title>Mes jeux · Stats</title><link rel="icon" href="/icon-192.png">
 <style>
 :root{--bg:#0b0d1a;--panel:#151a33;--ink:#e9ecff;--muted:#8a92c4;--flare:#ffb35c;--green:#5ff08f;color-scheme:dark}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;padding:20px max(16px,env(safe-area-inset-right)) 32px max(16px,env(safe-area-inset-left))}
@@ -440,8 +528,37 @@ li{background:var(--panel);border-radius:14px;padding:12px 14px}.top{display:fle
 .p.on::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);margin-right:6px;vertical-align:1px}.p.bot{font-style:italic}
 p.note{color:var(--muted);font-size:.82rem;margin:0}.box{background:var(--panel);border-radius:14px;padding:12px 14px}
 code{font-size:.8rem;background:#ffffff14;padding:1px 5px;border-radius:5px;color:var(--ink)}
+.tabs{display:flex;gap:4px;background:var(--panel);border-radius:12px;padding:4px;position:sticky;top:8px;z-index:5;box-shadow:0 6px 20px #0008}
+.tabs button{flex:1;border:0;background:none;color:var(--muted);font:inherit;font-weight:600;padding:9px 8px;border-radius:9px;cursor:pointer}
+.tabs button[aria-selected=true]{background:#2a3160;color:var(--ink)}
+section{display:flex;flex-direction:column;gap:14px}section[hidden]{display:none}
+input,.btn{font:inherit;color:var(--ink);border-radius:10px;border:1px solid #ffffff22;background:#0f1328;padding:9px 12px;min-height:40px}
+input{width:100%}input:focus{outline:2px solid #6f7cff;outline-offset:1px}
+.btn{cursor:pointer;background:#232a52;border-color:transparent;font-weight:600}
+.btn:hover{background:#2e376a}.btn:disabled{opacity:.5;cursor:default}
+.btn.primary{background:#ffb35c;color:#24160a}.btn.danger{background:#5a1f2c;color:#ffd5dc}.btn.danger:hover{background:#74283a}
+.plist{display:flex;flex-direction:column;gap:8px}
+.pl{background:var(--panel);border-radius:14px;overflow:hidden}
+.pl>button{all:unset;box-sizing:border-box;width:100%;display:grid;grid-template-columns:2.4rem 1fr auto;gap:10px;align-items:center;padding:11px 14px;cursor:pointer}
+.pl>button:focus-visible{outline:2px solid #6f7cff;outline-offset:-2px}
+.rk{color:var(--muted);font-variant-numeric:tabular-nums;font-size:.85rem}
+.nm{min-width:0}.nm b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.nm small{color:var(--muted);font-size:.78rem}
+.nm .anon{color:var(--muted);font-style:italic;font-weight:500}
+.sc{font-variant-numeric:tabular-nums;font-weight:700;text-align:right}
+.on-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green);margin-left:6px;vertical-align:2px}
+.acts{display:none;border-top:1px solid #ffffff10;padding:12px 14px 14px;gap:10px;flex-direction:column}
+.pl.open .acts{display:flex}.pl.open{box-shadow:inset 0 0 0 1px #6f7cff66}
+.row{display:flex;gap:8px}.row input{flex:1;min-width:0}
+.btns{display:flex;flex-wrap:wrap;gap:8px}.btns .btn{flex:1 1 calc(50% - 8px)}
+.danger-zone{border:1px solid #74283a;border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.danger-zone h3{color:#ff9fb0}
+.log li{padding:9px 12px;font-size:.85rem}.log small{color:var(--muted);display:block;font-size:.75rem}
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#e9ecff;color:#0b0d1a;padding:10px 16px;border-radius:12px;font-weight:600;max-width:calc(100% - 32px);box-shadow:0 8px 30px #000a;transition:opacity .2s;pointer-events:none}
+#toast.err{background:#ff9fb0}#toast[hidden]{display:block;opacity:0}
 </style></head><body><main>
-<div><h1>Mes jeux · Stats</h1><p class="sub">Mise à jour automatique toutes les 30 secondes</p></div>
+<div><h1>Mes jeux · Stats</h1><p class="sub" id="sub">Mise à jour automatique toutes les 30 secondes</p></div>
+<nav class="tabs" role="tablist"><button role="tab" data-tab="stats" aria-selected="true">Statistiques</button><button role="tab" data-tab="players" aria-selected="false">Joueurs Cosmos</button></nav>
+<section id="tab-stats">
 <div class="hero"><b>${total}</b><small>joueur${total > 1 ? "s" : ""} en ce moment, tous jeux confondus</small>
 <div class="split"><span><i class="chip" style="background:var(--flare)"></i>Cosmos : ${st.online}</span><span><i class="chip" style="background:var(--green)"></i>JoSky : ${js.state === "ok" ? js.online : "–"}</span></div></div>
 
@@ -464,14 +581,16 @@ ${live(st.online, `joueur${st.online > 1 ? "s" : ""} en train de jouer (3 derni�
 
 <div class="game"><span class="ico" style="background:linear-gradient(135deg,#1f7a52,#0b3024);display:grid;place-items:center;font-weight:800;color:#ffd36b">J</span><h2>JoSky</h2></div>
 ${joskyBlock}
-</main></body></html>`;
+</section>
+<section id="tab-players" hidden>${ADMIN_PLAYERS_HTML}</section>
+</main><script>${ADMIN_JS}</script></body></html>`;
 }
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://x");
   const p = decodeURIComponent(url.pathname);
 
-  if (p === "/admin" || p === "/admin/stats.json") return await adminRoute(req, res, p);
+  if (p === "/admin" || p.startsWith("/admin/")) return await adminRoute(req, res, p);
 
   if (p === "/healthz") return send(res, 200, JSON.stringify({ status: "healthy", uptime: Math.floor(process.uptime()) }), MIME[".json"]);
 

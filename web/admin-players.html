@@ -1,0 +1,20 @@
+<div class="grid">
+<div class="card"><small>Joueurs au classement</small><b id="nRanked">–</b></div>
+<div class="card"><small>Au défi du jour</small><b id="nDaily">–</b></div>
+</div>
+<input id="q" type="search" placeholder="Chercher un pseudo…" autocomplete="off" aria-label="Chercher un pseudo">
+<p class="note" id="hint">Touche un joueur pour modifier son score, le renommer ou le supprimer.</p>
+<div class="plist" id="plist"><p class="note">Chargement…</p></div>
+<button class="btn" id="more" hidden>Afficher plus</button>
+
+<h3>Dernières actions</h3>
+<ul class="log" id="log"><li class="note">Aucune action pour le moment.</li></ul>
+
+<div class="danger-zone">
+<h3>Zone sensible</h3>
+<p class="note">Télécharge une sauvegarde avant une grosse modification : elle contient tout le classement.</p>
+<a class="btn" href="/admin/sauvegarde.json" download style="text-align:center;text-decoration:none;display:flex;align-items:center;justify-content:center">Télécharger une sauvegarde</a>
+<button class="btn danger" data-global="resetDaily">Vider le défi du jour</button>
+<button class="btn danger" data-global="resetAll">Remettre tout le classement à zéro</button>
+</div>
+<div id="toast" hidden role="status" aria-live="polite"></div>

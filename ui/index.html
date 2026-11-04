@@ -1138,9 +1138,10 @@ async function renderRank(){
 async function pushScore(force){
   if(!canPost)return;
   if(!force&&best<=remoteBest&&dayBest<=remoteDay&&dayDone.length<=remoteDone)return;
-  const r=await nui("submitScore",{best,top:recordTop,uni:recordUni,dayKey,dayBest,dayTop,done:dayDone.length});
+  const r=await nui("submitScore",{best,top:recordTop,uni:recordUni,dayKey,dayBest,dayTop,done:dayDone.length,rev:refreshBoard.rev||0});
   if(r&&r.ok){remoteBest=Math.max(remoteBest,best);remoteDay=Math.max(remoteDay,dayBest);remoteDone=dayDone.length;refreshBoard()}
   else if(r&&r.error==="denied"){canPost=false;renderRank()}
+  else if(r&&r.error==="stale"){refreshBoard()}
 }
 let remoteDone=0;
 function schedulePush(){clearTimeout(pushTimer);pushTimer=setTimeout(()=>pushScore(false),2500)}
@@ -1181,7 +1182,9 @@ async function refreshBoard(){
   remoteBest=+me.best||0;remoteDay=+me.dayBest||0;remoteDone=+me.done||0;
   if(inPhone){
     /* le record affiché est celui du serveur pour ce joueur (ou ce personnage), pas celui du navigateur du téléphone */
-    if(!refreshBoard.synced){refreshBoard.synced=true;best=Math.max(remoteBest,score);dayBest=Math.max(remoteDay,mode==="daily"?score:0);bestEl.textContent=mode==="daily"?dayBest:best;try{localStorage.setItem("orbite-best",best)}catch(e){}}
+    /* rev change quand le score a été modifié depuis la page admin : on reprend celui du serveur */
+    const rev=+me.rev||0;
+    if(!refreshBoard.synced||rev!==refreshBoard.rev){refreshBoard.synced=true;refreshBoard.rev=rev;best=Math.max(remoteBest,score);dayBest=Math.max(remoteDay,mode==="daily"?score:0);bestEl.textContent=mode==="daily"?dayBest:best;try{localStorage.setItem("orbite-best",best)}catch(e){}}
   }
   pseudo=me.pseudo||"";requirePseudo=r.requirePseudo!==false;
   renderRank();

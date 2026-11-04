@@ -198,6 +198,14 @@ joueurs ayant battu leur record, joueurs du défi du jour. Elle se met à jour t
 Sans la variable, la page n'existe pas. Après 10 mauvais mots de passe, elle est bloquée
 une heure pour cette connexion. Les données brutes sont aussi en JSON sur `/admin/stats.json`.
 
+**Gérer les joueurs.** L'onglet **Joueurs Cosmos** de la même page permet de chercher un
+joueur, changer son score, le remettre à 0, le renommer, retirer son pseudo, effacer son défi
+du jour ou le supprimer du classement. La zone sensible permet de télécharger une sauvegarde
+complète, de vider le défi du jour ou de remettre tout le classement à zéro (pseudos gardés).
+Les 50 dernières actions sont gardées dans un journal. Quand un score est modifié, le jeu du
+joueur reprend le score du serveur au lieu de renvoyer son ancien record. Ces outils ne
+concernent que la version web : sur FiveM, le classement est dans la base MySQL.
+
 **JoSky sur la même page (optionnel).** Ajoute aussi dans le service Cosmos :
 
 | Variable | Valeur |
