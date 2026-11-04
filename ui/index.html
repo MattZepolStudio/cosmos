@@ -976,6 +976,13 @@ function discover(l){
   if(!seen.has(l)){seen.add(l);try{localStorage.setItem("orbite-seen",JSON.stringify([...seen]))}catch(e){}renderChain();if(l>2&&l<MAX){queueCard(l);[0,.09,.18].forEach((w,i)=>tone([659,784,1047][i],.25,.09,"triangle",w));buzz([15,40,25])}}
 }
 
+/* rythme de jeu, envoyé avec les scores pour repérer les robots (coups trop rapides, trop réguliers, ou joués sans toucher l'écran) */
+const newPlay=()=>({gid:Math.random().toString(36).slice(2,12),moves:0,ghost:0,iv:[],last:0});
+let play=newPlay(),trustedAt=0;
+function notePlay(){const now=performance.now();play.moves++;if(now-trustedAt>800)play.ghost++;
+  if(play.last){const d=now-play.last;if(d<10000){play.iv.push(Math.round(d));if(play.iv.length>80)play.iv.shift()}}play.last=now}
+function playStats(){const v=play.iv,n=v.length;let cv=1;if(n>=10){const m=v.reduce((a,b)=>a+b,0)/n;cv=m?Math.sqrt(v.reduce((a,b)=>a+(b-m)**2,0)/n)/m:0}
+  return{id:play.gid,m:play.moves,gh:play.ghost,cv:Math.round(cv*1000)/1000,n,s:score}}
 function move(dir){
   if(busy||over||!overlay.hidden||!sheet.hidden||!rankSheet.hidden||!missSheet.hidden||!card.hidden)return;
   const before=snapshot();
@@ -1003,6 +1010,7 @@ function move(dir){
     });
   }
   if(!moved)return;
+  notePlay();
   prev=before;syncUndo();hideTip();
   busy=true;grid=next;
   // glisse tout
@@ -1132,6 +1140,7 @@ async function renderRank(){
     ?(shown.length?"Défi du "+dayLabel+" : même partie pour tout le monde, le meilleur essai compte.":"Personne n'a encore joué le défi d'aujourd'hui. Lance « Défi du jour » pour prendre la première place.")
     :(shown.length?"Les meilleurs scores de tous les joueurs, tous modes confondus.":"Personne n'a encore de score. Termine une partie pour ouvrir le classement.");
   if(!canPost)note+=" Ton score n'a pas pu être envoyé au serveur.";
+  else if(window.__me&&window.__me.flagged)note="Ton score est en cours de vérification par l'organisateur : il apparaîtra au classement une fois validé.";
   else if(!pseudo&&requirePseudo&&myId)note=(shown.length?note+" ":"")+"Tes scores sont déjà enregistrés : ils apparaîtront dès que tu auras choisi un pseudo.";
   rankNote.textContent=note;
   const ids=shown.map(r=>r.id);let ps={};
@@ -1165,7 +1174,7 @@ async function renderRank(){
 async function pushScore(force){
   if(!canPost)return;
   if(!force&&best<=remoteBest&&dayBest<=remoteDay&&dayDone.length<=remoteDone)return;
-  const r=await nui("submitScore",{best,top:recordTop,uni:recordUni,dayKey,dayBest,dayTop,done:dayDone.length,rev:refreshBoard.rev||0});
+  const r=await nui("submitScore",{best,top:recordTop,uni:recordUni,dayKey,dayBest,dayTop,done:dayDone.length,rev:refreshBoard.rev||0,g:playStats()});
   if(r&&r.ok){remoteBest=Math.max(remoteBest,best);remoteDay=Math.max(remoteDay,dayBest);remoteDone=dayDone.length;refreshBoard()}
   else if(r&&r.error==="denied"){canPost=false;renderRank()}
   else if(r&&r.error==="stale"){refreshBoard()}
@@ -1379,7 +1388,7 @@ function makeRand(m,skip){
 }
 function saveGame(){
   if(over||!grid)return;
-  try{localStorage.setItem(saveKey(mode),JSON.stringify({v:1,tiles:snapshot().tiles,score,undos,prev,wonShown,movesCount,topLvl,randCalls,universe}));localStorage.setItem("cosmos-last-mode",mode)}catch(e){}
+  try{localStorage.setItem(saveKey(mode),JSON.stringify({v:1,tiles:snapshot().tiles,score,undos,prev,wonShown,movesCount,topLvl,randCalls,universe,play:{...play,last:0}}));localStorage.setItem("cosmos-last-mode",mode)}catch(e){}
 }
 function clearSave(m){try{localStorage.removeItem(saveKey(m||mode))}catch(e){}}
 function loadSave(m){try{const s=JSON.parse(localStorage.getItem(saveKey(m))||"null");return s&&Array.isArray(s.tiles)&&(s.tiles.length||s.pendingUniverse)?s:null}catch(e){return null}}
@@ -1390,6 +1399,7 @@ function resumeOrNew(m){
     nextUniverse(s.universe||2);return}
   restore(s);universe=m==="daily"?1:(s.universe||1);renderUni();
   movesCount=s.movesCount||0;topLvl=Math.max(topLvl,s.topLvl||1);prev=s.prev||null;
+  play=s.play&&s.play.gid?{...s.play,last:0,iv:s.play.iv||[]}:newPlay();
   if(typeof s.undos==="number")undos=s.undos;
   rand=makeRand(m,s.randCalls||0);syncUndo();
   if(!canPlay()){over=true;clearSave(m);showOverlay("Plus de place","L'espace est saturé. Masse totale : "+score+". Record : "+best+".","Rejouer","over")}
@@ -1400,7 +1410,7 @@ try{Object.keys(localStorage).filter(k=>k.startsWith("cosmos-save-daily-")&&k!==
 function newGame(){
   tilesEl.innerHTML="";els.clear();over=false;busy=false;wonShown=false;overlay.hidden=true;
   grid=[[null,null,null,null],[null,null,null,null],[null,null,null,null],[null,null,null,null]];
-  rand=makeRand(mode,0);movesCount=0;
+  rand=makeRand(mode,0);movesCount=0;play=newPlay();
   score=0;topLvl=1;universe=1;renderUni();setScore(0);spawn();spawn();
   if(dailyRule("debris"))for(const l of [3,4]){const e=empties();if(!e.length)break;const [r,c]=e[Math.floor(rand()*e.length)];const t={id:nextId++,r,c,lvl:l,comet:false};grid[r][c]=t;mk(t,"spawn")}
   if(mode==="daily"){attempt=freshAttempt();saveDay();renderMissions()}undos=mode==="daily"?0:1;prev=null;syncUndo();
@@ -1419,7 +1429,7 @@ addEventListener("keydown",e=>{
   /* pendant la saisie (pseudo…), les lettres Z Q S D et les flèches doivent s'écrire normalement */
   const t=e.target;if(t&&(t.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)))return;
   if(e.ctrlKey||e.metaKey||e.altKey)return;
-  const d=KEYS[e.key];if(d){e.preventDefault();move(d)}});
+  const d=KEYS[e.key];if(d){e.preventDefault();if(e.isTrusted)trustedAt=performance.now();move(d)}});
 let sx=null,sy=null;
 const app=document.getElementById("app");
 /* on peut glisser n'importe où sur l'écran de jeu, pas seulement sur le plateau */
@@ -1427,6 +1437,7 @@ app.addEventListener("pointerdown",e=>{if(e.target.closest("button"))return;sx=e
 app.addEventListener("pointerup",e=>{
   if(sx===null)return;const dx=e.clientX-sx,dy=e.clientY-sy;sx=null;
   if(Math.max(Math.abs(dx),Math.abs(dy))<24)return;
+  if(e.isTrusted)trustedAt=performance.now();
   move(Math.abs(dx)>Math.abs(dy)?(dx>0?"right":"left"):(dy>0?"down":"up"));
 });
 app.addEventListener("pointercancel",()=>{sx=null});

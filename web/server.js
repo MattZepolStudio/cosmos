@@ -133,6 +133,7 @@ function statsSnapshot() {
   return {
     online: onlineNow(),
     today: (() => { const st = dayStats(); return { day: today(), players: Object.keys(st.players).length, newPlayers: st.newPlayers, records: Object.keys(st.recordBy).length, pseudos: st.pseudos, daily: Object.keys(data.daily[today()] || {}).length }; })(),
+    flagged: players.filter(p => p.flag).length,
     total: { players: players.length, named: players.filter(p => p.pseudo).length, best: Math.max(0, ...players.map(p => p.best || 0)) },
     week: days.map(d => ({ day: d, players: Object.keys(data.stats[d].players).length, newPlayers: data.stats[d].newPlayers, records: Object.keys(data.stats[d].recordBy || {}).length })),
     uptime: Math.floor(process.uptime())
@@ -183,7 +184,7 @@ function tooSoon(key, kind) {
 function getBoard(key, body) {
   const day = validDay(body.dayKey) ? body.dayKey : today();
   const me = data.players[key];
-  const named = Object.entries(data.players).filter(([, p]) => p.pseudo);
+  const named = Object.entries(data.players).filter(([, p]) => p.pseudo && !p.flag);
   const ranked = named.filter(([, p]) => p.best > 0).sort((a, b) => b[1].best - a[1].best);
   const myRank = ranked.findIndex(([id]) => id === key) + 1 || null;
   const all = ranked
@@ -191,7 +192,7 @@ function getBoard(key, body) {
     .map(([id, p], i) => ({ id: id === key ? "me" : "a" + (i + 1), name: p.pseudo, best: p.best, top: p.top, uni: p.uni || 1 }));
   const dayRows = data.daily[day] || {};
   const dayRanked = Object.entries(dayRows)
-    .filter(([id]) => data.players[id] && data.players[id].pseudo)
+    .filter(([id]) => data.players[id] && data.players[id].pseudo && !data.players[id].flag)
     .sort((a, b) => b[1].best - a[1].best);
   const myDayRank = dayRanked.findIndex(([id]) => id === key) + 1 || null;
   const daily = dayRanked
@@ -199,7 +200,7 @@ function getBoard(key, body) {
     .map(([id, d], i) => ({ id: id === key ? "me" : "d" + (i + 1), name: data.players[id].pseudo, best: d.best, top: d.top, done: d.done, streak: d.done >= 3 ? d.streak || 1 : 0 }));
   const myDay = dayRows[key];
   return {
-    me: { id: "me", pseudo: me?.pseudo || null, best: me?.best || 0, dayBest: myDay?.best || 0, done: myDay?.done || 0, rank: myRank, dayRank: myDayRank, streak: streakOf(key, day), rev: me?.rev || 0 },
+    me: { id: "me", pseudo: me?.pseudo || null, best: me?.best || 0, dayBest: myDay?.best || 0, done: myDay?.done || 0, rank: myRank, dayRank: myDayRank, streak: streakOf(key, day), rev: me?.rev || 0, flagged: !!me?.flag },
     requirePseudo: true,
     all,
     daily
@@ -230,6 +231,7 @@ function submitScore(key, body, ip) {
   const p = data.players[key] || (data.players[key] = { pseudo: null, best: 0, top: 1 });
   // score modifié depuis la page admin : le jeu doit d'abord relire le classement
   if (p.rev && Number(body.rev) !== p.rev) return { ok: false, error: "stale" };
+  checkBot(key, p, body.g);
   const best = clampInt(body.best, 0, CONFIG.maxScore);
   if (best > p.best) { if (p.best > 0) dayStats().recordBy[key.slice(0, 12)] = 1; p.best = best; p.top = clampInt(body.top, 1, 12); p.uni = clampInt(body.uni, 1, 999); }
   p.updatedAt = Date.now();
@@ -249,6 +251,46 @@ function submitScore(key, body, ip) {
   }
   scheduleSave();
   return { ok: true };
+}
+
+/* ---------- détection des robots ----------
+   Le jeu envoie avec chaque score le rythme de la partie en cours. Un score suspect n'est pas
+   supprimé : il est caché du classement et signalé dans /admin, où tu décides. */
+const BOT = {
+  maxRate: 4.5,          // coups par seconde, tenus sur au moins 300 coups
+  maxGhost: 0.2,         // part des coups joués sans toucher l'écran ni le clavier
+  minCv: 0.12,           // régularité : un humain varie beaucoup plus que ça entre deux coups
+  maxPerMove: 250,       // points par coup : au-delà, le score est impossible
+  dataFrom: "2026-11-08" // après cette date, un score envoyé sans rythme de partie est suspect
+};
+const BOT_REASONS = {
+  speed: "joue plus de 4,5 coups par seconde en continu",
+  ghost: "coups joués sans toucher l'écran ni le clavier",
+  regular: "rythme trop régulier, comme une machine",
+  impossible: "trop de points pour le nombre de coups joués",
+  nodata: "jeu modifié : il n'envoie pas le rythme de la partie"
+};
+const gameTrack = new Map(); // joueur -> { id, t0, m0 } (heure du serveur)
+function checkBot(key, p, g) {
+  if (p.trusted) return;
+  const reasons = [];
+  if (!g || typeof g !== "object") { if (today() >= BOT.dataFrom && Number(p.best) > 0) reasons.push("nodata"); }
+  else {
+    const m = clampInt(g.m, 0, 1e7), gh = clampInt(g.gh, 0, 1e7), n = clampInt(g.n, 0, 1000), sc = clampInt(g.s, 0, CONFIG.maxScore);
+    const cv = Number(g.cv), id = String(g.id || "").slice(0, 16);
+    let tr = gameTrack.get(key);
+    if (!tr || tr.id !== id || m < tr.m0) { tr = { id, t0: Date.now(), m0: m }; gameTrack.set(key, tr); if (gameTrack.size > 5000) gameTrack.clear(); }
+    const dm = m - tr.m0, secs = (Date.now() - tr.t0) / 1000;
+    if (dm >= 300 && dm / Math.max(secs, 1) > BOT.maxRate) reasons.push("speed");
+    if (m >= 60 && gh / m > BOT.maxGhost) reasons.push("ghost");
+    if (n >= 60 && Number.isFinite(cv) && cv < BOT.minCv) reasons.push("regular");
+    if (m >= 50 && sc / m > BOT.maxPerMove) reasons.push("impossible");
+  }
+  if (!reasons.length) return;
+  const f = p.flag || (p.flag = { at: Date.now(), reasons: [] });
+  for (const r of reasons) if (!f.reasons.includes(r)) f.reasons.push(r);
+  f.last = Date.now();
+  if (!f.logged) { f.logged = 1; adminLog(`⚠ ${p.pseudo || "Joueur sans pseudo"} mis de côté : ${f.reasons.map(r => BOT_REASONS[r]).join(", ")}`); }
 }
 
 // signal discret envoyé par l'appli ouverte (toutes les 2 minutes), pour savoir qui joue
@@ -391,11 +433,11 @@ function adminAuth(req, res) {
 /* ---------- gestion des joueurs (page /admin, onglet Joueurs) ---------- */
 function playersList() {
   const day = data.daily[today()] || {};
-  const ranked = Object.entries(data.players).filter(([, p]) => p.pseudo && p.best > 0).sort((a, b) => b[1].best - a[1].best);
+  const ranked = Object.entries(data.players).filter(([, p]) => p.pseudo && p.best > 0 && !p.flag).sort((a, b) => b[1].best - a[1].best);
   const rank = new Map(ranked.map(([id], i) => [id, i + 1]));
   return Object.entries(data.players)
     .filter(([, p]) => p.pseudo || p.best > 0)
-    .map(([id, p]) => ({ id, pseudo: p.pseudo || null, best: p.best || 0, uni: p.uni || 1, rank: rank.get(id) || null, seen: p.updatedAt || 0, online: (presence.get(id) || 0) >= Date.now() - ONLINE_MS, dayBest: day[id]?.best || 0, done: day[id]?.done || 0, streak: streakOf(id, today()) }))
+    .map(([id, p]) => ({ id, flag: p.flag ? p.flag.reasons.map(r => BOT_REASONS[r] || r) : null, trusted: !!p.trusted, pseudo: p.pseudo || null, best: p.best || 0, uni: p.uni || 1, rank: rank.get(id) || null, seen: p.updatedAt || 0, online: (presence.get(id) || 0) >= Date.now() - ONLINE_MS, dayBest: day[id]?.best || 0, done: day[id]?.done || 0, streak: streakOf(id, today()) }))
     .sort((a, b) => b.best - a.best);
 }
 function bumpRev(p) { p.rev = (p.rev || 0) + 1; p.updatedAt = Date.now(); }
@@ -410,7 +452,11 @@ const ADMIN_ACTIONS = {
     p.best = v; if (!v) { p.top = 1; p.uni = 1; }
     bumpRev(p); adminLog(`Score de ${p.pseudo || "anonyme"} : ${fmtN(old)} → ${fmtN(v)}`);
   },
-  resetScore({ id }) { return ADMIN_ACTIONS.setScore({ id, best: 0 }); },
+  resetScore({ id }) { const p = data.players[id]; if (p) delete p.flag; return ADMIN_ACTIONS.setScore({ id, best: 0 }); },
+  approve({ id }) {
+    const p = data.players[id]; if (!p) return "Joueur introuvable.";
+    delete p.flag; p.trusted = true; adminLog(`Score de ${p.pseudo || "anonyme"} validé (${fmtN(p.best || 0)}) : il n'est plus surveillé`);
+  },
   clearDaily({ id }) {
     const p = data.players[id], d = data.daily[today()]; if (!p) return "Joueur introuvable.";
     if (!d || !d[id]) return "Ce joueur n'a pas de score au défi du jour.";
@@ -553,6 +599,11 @@ input{width:100%}input:focus{outline:2px solid #6f7cff;outline-offset:1px}
 .danger-zone{border:1px solid #74283a;border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px}
 .danger-zone h3{color:#ff9fb0}
 .log li{padding:9px 12px;font-size:.85rem}.log small{color:var(--muted);display:block;font-size:.75rem}
+.flagpill{display:inline-block;margin-left:8px;padding:1px 8px;border-radius:999px;background:#ffb35c;color:#24160a;font-size:.68rem;font-weight:700;vertical-align:2px}
+.flagbar{all:unset;box-sizing:border-box;display:flex;flex-direction:column;gap:2px;width:100%;padding:12px 14px;border-radius:14px;background:#3a2a14;box-shadow:inset 0 0 0 1.5px #ffb35c;cursor:pointer;color:var(--ink)}
+.flagbar span{color:#e8c9a0;font-size:.82rem}.flagbar.on{background:var(--panel);box-shadow:none;text-align:center;font-weight:600}.flagbar[hidden]{display:none}
+.why{background:#3a2a1466;border-radius:10px;padding:10px 12px;font-size:.85rem;display:flex;flex-direction:column;gap:6px}
+.why ul{margin:0;padding-left:18px;color:#e8c9a0;display:block}.why li{background:none;padding:0;border-radius:0}.why p{margin:0;color:var(--muted);font-size:.8rem}
 #toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#e9ecff;color:#0b0d1a;padding:10px 16px;border-radius:12px;font-weight:600;max-width:calc(100% - 32px);box-shadow:0 8px 30px #000a;transition:opacity .2s;pointer-events:none}
 #toast.err{background:#ff9fb0}#toast[hidden]{display:block;opacity:0}
 </style></head><body><main>
@@ -577,6 +628,7 @@ ${live(st.online, `joueur${st.online > 1 ? "s" : ""} en train de jouer (3 derni�
 <div class="card"><small>Joueurs enregistrés</small><b>${fmtN(st.total.players)}</b></div>
 <div class="card"><small>Meilleur score</small><b>${fmtN(st.total.best)}</b></div>
 </div>
+${st.flagged ? `<p class="note box" style="color:#ffd9a8">⚠ ${st.flagged} score${st.flagged > 1 ? "s" : ""} mis de côté (joué${st.flagged > 1 ? "s" : ""} comme un robot) : va dans l'onglet <b>Joueurs Cosmos</b> pour décider.</p>` : ""}
 <p class="note">Serveur Cosmos réveillé depuis ${up(st.uptime)}. La version FiveM n'est pas comptée.</p>
 
 <div class="game"><span class="ico" style="background:linear-gradient(135deg,#1f7a52,#0b3024);display:grid;place-items:center;font-weight:800;color:#ffd36b">J</span><h2>JoSky</h2></div>

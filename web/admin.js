@@ -32,7 +32,7 @@
   document.addEventListener("visibilitychange", () => { if (current === "stats" && !document.hidden) refreshStats(); });
 
   /* ---------- joueurs ---------- */
-  let players = null, log = [], openId = null, limit = 50;
+  let players = null, log = [], openId = null, limit = 50, onlyFlag = false;
   const toast = (msg, err) => { const t = $("toast"); t.textContent = msg; t.className = err ? "err" : ""; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, 3200); };
   function take(r) { players = r.players; log = r.log || []; render(); }
   async function load() {
@@ -50,13 +50,14 @@
     finally { if (btn) btn.disabled = false; }
   }
   function row(p) {
-    const name = p.pseudo ? esc(p.pseudo) : '<span class="anon">sans pseudo</span>';
+    const name = (p.pseudo ? esc(p.pseudo) : '<span class="anon">sans pseudo</span>') + (p.flag ? '<span class="flagpill">À vérifier</span>' : "");
     const day = p.dayBest ? ` · défi ${fmt(p.dayBest)} (${p.done}/3)` : "";
     return `<div class="pl${openId === p.id ? " open" : ""}" data-id="${p.id}">
 <button aria-expanded="${openId === p.id}"><span class="rk">${p.rank ? "#" + p.rank : "–"}</span>
 <span class="nm"><b>${name}${p.online ? '<i class="on-dot" title="En train de jouer"></i>' : ""}</b><small>Univers ${p.uni}${day} · ${ago(p.seen)}</small></span>
 <span class="sc">${fmt(p.best)}</span></button>
 <div class="acts">
+${p.flag ? `<div class="why"><b>Pourquoi ce score est mis de côté :</b><ul>${p.flag.map(r => `<li>${esc(r)}</li>`).join("")}</ul><p>Il est caché du classement. Valide-le si tu connais ce joueur, sinon remets-le à 0.</p><button class="btn primary" data-do="approve">Valider ce score</button></div>` : ""}
 <form class="row" data-do="setScore"><input type="number" inputmode="numeric" min="0" step="1" value="${p.best}" aria-label="Nouveau score"><button class="btn primary">Changer le score</button></form>
 <form class="row" data-do="rename"><input type="text" maxlength="16" value="${p.pseudo ? esc(p.pseudo) : ""}" placeholder="Nouveau pseudo" aria-label="Nouveau pseudo"><button class="btn">Renommer</button></form>
 <div class="btns">
@@ -68,7 +69,12 @@ ${p.pseudo ? '<button class="btn" data-do="unname">Retirer le pseudo</button>' :
   }
   function render() {
     const q = $("q").value.trim().toLowerCase();
-    const list = players.filter(p => !q || (p.pseudo || "").toLowerCase().includes(q));
+    const flagged = players.filter(p => p.flag).length;
+    if (!flagged) onlyFlag = false;
+    const fb = $("flagbar"); fb.hidden = !flagged;
+    fb.innerHTML = onlyFlag ? "Afficher tous les joueurs" : `<b>⚠ ${flagged} score${flagged > 1 ? "s" : ""} à vérifier</b><span>Joué${flagged > 1 ? "s" : ""} comme un robot, caché${flagged > 1 ? "s" : ""} du classement. Touche pour voir.</span>`;
+    fb.classList.toggle("on", onlyFlag);
+    const list = players.filter(p => (!onlyFlag || p.flag) && (!q || (p.pseudo || "").toLowerCase().includes(q)));
     $("nRanked").textContent = fmt(players.filter(p => p.rank).length);
     $("nDaily").textContent = fmt(players.filter(p => p.dayBest).length);
     $("plist").innerHTML = list.slice(0, limit).map(row).join("") || '<p class="note">Aucun joueur trouvé.</p>';
@@ -76,6 +82,7 @@ ${p.pseudo ? '<button class="btn" data-do="unname">Retirer le pseudo</button>' :
     $("log").innerHTML = log.length ? log.slice(0, 15).map(l => `<li>${esc(l.text)}<small>${new Date(l.at).toLocaleString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</small></li>`).join("") : '<li class="note">Aucune action pour le moment.</li>';
   }
   $("q").addEventListener("input", () => { limit = 50; render(); });
+  $("flagbar").addEventListener("click", () => { onlyFlag = !onlyFlag; openId = null; render(); });
   $("more").addEventListener("click", () => { limit += 50; render(); });
 
   const plist = $("plist");
@@ -85,6 +92,7 @@ ${p.pseudo ? '<button class="btn" data-do="unname">Retirer le pseudo</button>' :
     if (e.target.closest(".pl > button")) { openId = openId === id ? null : id; render(); return; }
     const b = e.target.closest("button[data-do]"); if (!b) return;
     const d = b.dataset.do;
+    if (d === "approve" && confirm(`Valider le score de ${who} ? Il réapparaît au classement et ce joueur ne sera plus surveillé.`)) act({ action: "approve", id }, "Score validé", b);
     if (d === "resetScore" && confirm(`Remettre le score de ${who} à 0 ?`)) act({ action: "resetScore", id }, "Score remis à 0", b);
     if (d === "clearDaily" && confirm(`Effacer le score de ${who} au défi du jour ?`)) act({ action: "clearDaily", id }, "Défi du jour effacé", b);
     if (d === "unname" && confirm(`Retirer le pseudo « ${p.pseudo} » ? Le joueur disparaît du classement jusqu'à ce qu'il en choisisse un autre.`)) act({ action: "rename", id, pseudo: "" }, "Pseudo retiré", b);

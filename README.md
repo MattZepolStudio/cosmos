@@ -206,6 +206,19 @@ Les 50 dernières actions sont gardées dans un journal. Quand un score est modi
 joueur reprend le score du serveur au lieu de renvoyer son ancien record. Ces outils ne
 concernent que la version web : sur FiveM, le classement est dans la base MySQL.
 
+**Détection des robots.** Le jeu envoie avec chaque score le rythme de la partie. Le serveur
+met de côté un score quand le joueur :
+- joue plus de 4,5 coups par seconde en continu ;
+- joue des coups sans toucher l'écran ni le clavier (un script qui pilote le jeu) ;
+- garde un rythme trop régulier, comme une machine ;
+- a trop de points pour le nombre de coups joués (score inventé) ;
+- utilise un jeu modifié qui n'envoie pas ces informations (à partir du 8 novembre 2026).
+
+Le score n'est pas supprimé : il est caché du classement et signalé dans `/admin`, onglet
+**Joueurs Cosmos**, où tu peux le **valider** (le joueur n'est alors plus surveillé) ou le
+remettre à 0. Les seuils se règlent dans `BOT` en haut de la détection, dans `web/server.js`.
+Un robot lent et bien caché peut passer : aucune protection ne bloque tout.
+
 **JoSky sur la même page (optionnel).** Ajoute aussi dans le service Cosmos :
 
 | Variable | Valeur |
