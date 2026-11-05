@@ -206,6 +206,13 @@ Les 50 dernières actions sont gardées dans un journal. Quand un score est modi
 joueur reprend le score du serveur au lieu de renvoyer son ancien record. Ces outils ne
 concernent que la version web : sur FiveM, le classement est dans la base MySQL.
 
+**Nouveautés (« Quoi de neuf ? »).** Après une mise à jour, les joueurs qui avaient déjà joué
+voient une fenêtre listant les nouveautés, une seule fois (les nouveaux joueurs ne la voient pas,
+ils ont le tutoriel). Elle reste accessible depuis le catalogue (« Voir les nouveautés »).
+Pour une nouvelle mise à jour, modifie `NEWS` dans `ui/index.html` : change `v` (par exemple la
+date du jour, c'est ce qui la fait réapparaître), `date` et la liste `items`. Un élément avec
+`bh:true` n'est montré qu'aux joueurs qui ont déjà vu le trou noir.
+
 **Détection des robots.** Le jeu envoie avec chaque score le rythme de la partie. Le serveur
 met de côté un score quand le joueur :
 - joue plus de 4,5 coups par seconde en continu ;

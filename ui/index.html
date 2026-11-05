@@ -310,6 +310,14 @@ button{font:inherit;cursor:pointer}
 .chip .name{font-size:.48rem}
 .chip.locked .face{filter:brightness(0) opacity(.35)}
 .chip.locked::after{content:"?";position:absolute;font-family:var(--mono);color:var(--muted);font-size:.8rem}
+.card.news{text-align:left;box-sizing:border-box;width:min(calc(100vw - 32px),380px);max-height:86%}
+.news .eyebrow,.news h2{text-align:center}
+.newsList{list-style:none;margin:6px 0 18px;padding:0;display:flex;flex-direction:column;gap:10px}
+.newsList li{display:grid;grid-template-columns:28px 1fr;gap:10px;align-items:start;font-size:.88rem;line-height:1.4;color:#c3c9f0}
+.newsList .ic{font-size:1.15rem;line-height:1.3;text-align:center}
+.newsList b{display:block;color:var(--ink);font-size:.92rem}
+.news .btn{display:block;margin:0 auto;min-width:180px}
+.newsLink{display:block;margin:10px auto 0;border:0;background:none;color:var(--muted);font:inherit;font-size:.8rem;text-decoration:underline;text-underline-offset:3px;padding:8px;cursor:pointer}
 .howto{margin-top:14px;border-radius:14px;background:#ffffff08;box-shadow:inset 0 0 0 1px #ffffff12}
 .howto summary{list-style:none;display:flex;align-items:center;gap:8px;padding:11px 14px;cursor:pointer;font-size:.86rem;color:var(--ink);font-weight:600;min-height:44px;box-sizing:border-box}
 .howto summary::-webkit-details-marker{display:none}
@@ -404,6 +412,7 @@ button{font:inherit;cursor:pointer}
       <li><b>Grades</b> · Nova 1 M · Supernova 2,5 M · Quasar 5 M · Créateur 10 M</li>
     </ul>
   </details>
+  <button class="newsLink" id="newsLink" type="button">✨ Voir les nouveautés</button>
 </section>
 
 <section class="sheet" id="rankSheet" hidden aria-label="Classement">
@@ -437,6 +446,13 @@ button{font:inherit;cursor:pointer}
   <p class="missMeta" id="missMeta"></p>
 </section>
 
+<div class="sheetBg" id="newsBg" hidden></div>
+<div class="card news" id="news" role="dialog" aria-labelledby="newsTitle" hidden>
+  <p class="eyebrow" id="newsDate">Mise à jour</p>
+  <h2 id="newsTitle">Quoi de neuf ?</h2>
+  <ul class="newsList" id="newsList"></ul>
+  <button class="btn" id="newsBtn" type="button">C'est parti</button>
+</div>
 <div class="sheetBg" id="cardBg" hidden></div>
 <div class="card" id="card" role="dialog" aria-labelledby="cardName" hidden>
   <p class="eyebrow" id="cardEyebrow">Nouvel astre découvert</p>
@@ -990,7 +1006,7 @@ function notePlay(){const now=performance.now();play.moves++;if(now-trustedAt>80
 function playStats(){const v=play.iv,n=v.length;let cv=1;if(n>=10){const m=v.reduce((a,b)=>a+b,0)/n;cv=m?Math.sqrt(v.reduce((a,b)=>a+(b-m)**2,0)/n)/m:0}
   return{id:play.gid,m:play.moves,gh:play.ghost,cv:Math.round(cv*1000)/1000,n,s:score}}
 function move(dir){
-  if(busy||over||!overlay.hidden||!sheet.hidden||!rankSheet.hidden||!missSheet.hidden||!card.hidden)return;
+  if(busy||over||!overlay.hidden||!sheet.hidden||!rankSheet.hidden||!missSheet.hidden||!card.hidden||!newsEl.hidden)return;
   const before=snapshot();
   let moved=false,gain=0;
   const removed=[],born=[];
@@ -1492,7 +1508,34 @@ function startLogoOrbit(){
   document.addEventListener("visibilitychange",()=>{if(!document.hidden)wake()});
   wake();
 }
+/* ---------- nouveautés : affichées une fois après chaque mise à jour, aux joueurs qui avaient déjà joué ---------- */
+const NEWS={v:"2026-11-05",date:"Mise à jour du 5 novembre",items:[
+  {i:"🚀",t:"Ouverture instantanée",d:"Le jeu se lance tout de suite, même sans réseau. Tes scores partent dès que la connexion revient."},
+  {i:"🏆",t:"Ton pseudo en fin de partie",d:"Plus besoin d'aller dans le classement pour le choisir : le jeu te le propose quand ta partie se termine."},
+  {i:"🎯",t:"Défi du jour plus clair",d:"Une mission ratée est signalée tout de suite. Et pour la géante gazeuse, les comètes utilisées avant ne comptent plus."},
+  {i:"🎨",t:"Un ciel par univers",d:"Chaque univers a maintenant sa propre couleur, impossible de s'y perdre.",bh:true},
+  {i:"📖",t:"« Comment jouer » plus compact",d:"Repliée dans le catalogue, la rubrique ne prend plus toute la place."},
+  {i:"✋",t:"Fini le menu « Copier »",d:"Glisser le doigt ou appuyer longtemps ne sélectionne plus le texte de l'écran."},
+  {i:"🛡️",t:"Classement protégé",d:"Les scores joués par des robots sont mis de côté pour que le classement reste juste."}
+]};
+const newsEl=document.getElementById("news"),newsBg=document.getElementById("newsBg");
+function showNews(){
+  const bh=seen.has(MAX),ul=document.getElementById("newsList");ul.innerHTML="";
+  document.getElementById("newsDate").textContent=NEWS.date;
+  for(const n of NEWS.items){if(n.bh&&!bh)continue;const li=document.createElement("li");const ic=document.createElement("span");ic.className="ic";ic.textContent=n.i;
+    const tx=document.createElement("span");const b=document.createElement("b");b.textContent=n.t;tx.append(b,n.d);li.append(ic,tx);ul.appendChild(li)}
+  newsEl.hidden=false;newsBg.hidden=false;newsEl.scrollTop=0;
+}
+function closeNews(){newsEl.hidden=true;newsBg.hidden=true}
+document.getElementById("newsBtn").onclick=closeNews;newsBg.onclick=closeNews;
+addEventListener("keydown",e=>{if(e.key==="Escape"&&!newsEl.hidden)closeNews()});
+document.getElementById("newsLink").onclick=()=>{closeSheet();showNews()};
+function maybeNews(returning){
+  let seenV=null;try{seenV=localStorage.getItem("cosmos-news");localStorage.setItem("cosmos-news",NEWS.v)}catch(e){return}
+  if(returning&&seenV!==NEWS.v)setTimeout(()=>{if(card.hidden&&sheet.hidden&&rankSheet.hidden&&missSheet.hidden&&overlay.hidden)showNews()},700);
+}
 function start(data){
+  const returning=seenTip("swipe");
   renderChain();bestEl.textContent=best;syncSound();renderMissions();
   document.querySelectorAll(".logo .pl").forEach(el=>{const src=window.SPRITES&&SPRITES[el.dataset.l];if(!src)return;const c=document.createElement("canvas");c.width=c.height=src.width;c.getContext("2d").drawImage(src,0,0);el.textContent="";el.appendChild(c)});
   startLogoOrbit();
@@ -1502,6 +1545,7 @@ function start(data){
   else resumeOrNew("free");
   syncUndo();
   setTimeout(()=>showTip("swipe","<b>Glisse le doigt</b> dans une direction : tous les astres bougent. Deux astres identiques fusionnent.",9000),500);
+  maybeNews(returning);
 }
 window.SPRITES_READY.then(()=>{start({});refreshBoard()});
 </script>
