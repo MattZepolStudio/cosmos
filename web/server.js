@@ -401,7 +401,13 @@ const ADMIN_PASSWORD = process.env.COSMOS_ADMIN_PASSWORD || "";
 const adminFails = new Map();
 /* JoSky est lu sur sa propre page /admin/stats.json, pour tout voir au même endroit.
    Variables : JOSKY_URL (ex. https://josky-xxxx.onrender.com) et JOSKY_ADMIN_PASSWORD. */
-const JOSKY_URL = (process.env.JOSKY_URL || "").replace(/\/+$/, "");
+// adresse tolérante : « josky-xxxx.onrender.com », avec ou sans https://, avec ou sans / ou /admin à la fin
+const JOSKY_URL = (() => {
+  let u = (process.env.JOSKY_URL || "").trim().replace(/^["']|["']$/g, "");
+  if (!u) return "";
+  if (!/^https?:\/\//i.test(u)) u = "https://" + u;
+  try { const x = new URL(u); return x.origin; } catch { return u; }
+})();
 const JOSKY_PASSWORD = process.env.JOSKY_ADMIN_PASSWORD || "";
 let joskyCache = { at: 0, value: null };
 async function joskyStats() {
@@ -414,7 +420,14 @@ async function joskyStats() {
       signal: AbortSignal.timeout(8000)
     });
     value = r.ok ? { state: "ok", ...(await r.json()) } : { state: r.status === 401 ? "password" : r.status === 404 ? "nopage" : "error", status: r.status };
-  } catch { value = { state: "asleep" }; }
+  } catch (e) {
+    // on distingue la veille (délai dépassé) d'une adresse fausse, pour savoir quoi corriger
+    const code = e?.cause?.code || e?.code || "";
+    if (e?.name === "TimeoutError" || e?.name === "AbortError") value = { state: "asleep" };
+    else if (code === "ENOTFOUND" || code === "EAI_AGAIN") value = { state: "badurl", detail: "adresse introuvable" };
+    else if (e instanceof TypeError && /URL/i.test(e.message)) value = { state: "badurl", detail: "adresse mal écrite" };
+    else value = { state: "error", status: code || e?.message || "connexion impossible" };
+  }
   joskyCache = { at: Date.now(), value };
   return value;
 }
@@ -545,10 +558,11 @@ ${rooms ? `<ul>${rooms}</ul>` : '<p class="note">Aucun salon ouvert pour le mome
   } else {
     const msg = {
       off: "Pour voir JoSky ici, ajoute dans le service Cosmos sur Render les variables <code>JOSKY_URL</code> (l'adresse de JoSky) et <code>JOSKY_ADMIN_PASSWORD</code> (son mot de passe ADMIN_PASSWORD).",
-      asleep: "JoSky ne répond pas : il est sûrement en veille (personne n'y a joué depuis 15 min). Il se réveille, recharge la page dans une minute.",
+      asleep: "JoSky n'a pas répondu en 8 secondes : il est sûrement en veille (personne n'y a joué depuis 15 min). Il se réveille, recharge la page dans une minute. Adresse utilisée : <code>" + esc(JOSKY_URL) + "</code>.",
       password: "JoSky refuse le mot de passe : vérifie que <code>JOSKY_ADMIN_PASSWORD</code> est identique à <code>ADMIN_PASSWORD</code> du service JoSky.",
       nopage: "La page de stats de JoSky n'existe pas encore : ajoute la variable <code>ADMIN_PASSWORD</code> dans le service JoSky.",
-      error: "JoSky a répondu par une erreur (" + esc(js.status) + ")."
+      badurl: "Impossible de joindre JoSky à l'adresse <code>" + esc(JOSKY_URL) + "</code> (" + esc(js.detail) + "). Vérifie la variable <code>JOSKY_URL</code> du service Cosmos : elle doit être l'adresse que tu ouvres pour jouer à JoSky, par exemple <code>https://josky-xxxx.onrender.com</code>.",
+      error: "JoSky a répondu par une erreur (" + esc(js.status) + "). Adresse utilisée : <code>" + esc(JOSKY_URL) + "</code>."
     }[js.state];
     joskyBlock = `<p class="note box">${msg}</p>`;
   }
