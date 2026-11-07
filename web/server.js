@@ -117,10 +117,14 @@ function dayStats(day = today()) {
   if (!st.recordBy) st.recordBy = {};
   return st;
 }
+const hourNow = () => Number(new Date().toLocaleString("en-GB", { timeZone: process.env.COSMOS_TZ || "Europe/Paris", hour: "2-digit", hour12: false })) % 24;
 function markActive(key) {
   presence.set(key, Date.now());
   const st = dayStats(), k = key.slice(0, 12);
   if (!st.players[k]) { st.players[k] = 1; pruneDays(); scheduleSave(); }
+  // heures d'affluence : un bit par heure où ce joueur a été vu
+  const bit = 2 ** hourNow(), hrs = st.hrs || (st.hrs = {});
+  if (!((hrs[k] || 0) & bit)) { hrs[k] = (hrs[k] || 0) | bit; scheduleSave(); }
 }
 function onlineNow() {
   const limit = Date.now() - ONLINE_MS; let n = 0;
@@ -137,6 +141,51 @@ function statsSnapshot() {
     total: { players: players.length, named: players.filter(p => p.pseudo).length, best: Math.max(0, ...players.map(p => p.best || 0)) },
     week: days.map(d => ({ day: d, players: Object.keys(data.stats[d].players).length, newPlayers: data.stats[d].newPlayers, records: Object.keys(data.stats[d].recordBy || {}).length })),
     uptime: Math.floor(process.uptime())
+  };
+}
+
+/* Tout ce qu'affiche la page /admin, onglet Cosmos */
+function cosmosData() {
+  const day = today(), st = dayStats(day), players = Object.entries(data.players);
+  const limit = Date.now() - ONLINE_MS;
+  const onlineNames = [...presence].filter(([, t]) => t >= limit).map(([k]) => data.players[k]?.pseudo || null);
+  const daily = data.daily[day] || {};
+  const name = id => data.players[id]?.pseudo || null;
+  const ranked = players.filter(([, p]) => p.pseudo && p.best > 0 && !p.flag).sort((a, b) => b[1].best - a[1].best);
+  const days = [];
+  for (let i = 13; i >= 0; i--) {
+    const k = addDays(day, -i), sd = data.stats[k], dd = data.daily[k] || {};
+    days.push({ day: k, players: sd ? Object.keys(sd.players).length : 0, newPlayers: sd?.newPlayers || 0, records: sd ? Object.keys(sd.recordBy || {}).length : 0,
+      daily: Object.keys(dd).length, dailyDone: Object.values(dd).filter(d => d.done >= 3).length });
+  }
+  const hours = Array(24).fill(0);
+  for (let i = 0; i < 7; i++) {
+    const sd = data.stats[addDays(day, -i)];
+    for (const mask of Object.values(sd?.hrs || {})) for (let h = 0; h < 24; h++) if (mask & 2 ** h) hours[h]++;
+  }
+  const unis = {};
+  let blackHole = 0, mass = 0;
+  for (const [, p] of players) {
+    if (!(p.best > 0)) continue;
+    const u = Math.min(p.uni || 1, 6);
+    unis[u] = (unis[u] || 0) + 1;
+    if ((p.top || 1) >= 12 || (p.uni || 1) > 1) blackHole++;
+    mass += p.best;
+  }
+  const dEntries = Object.entries(daily);
+  return {
+    online: onlineNames.length,
+    onlineNames: onlineNames.filter(Boolean),
+    onlineAnon: onlineNames.filter(n => !n).length,
+    today: { day, players: Object.keys(st.players).length, newPlayers: st.newPlayers, records: Object.keys(st.recordBy).length, pseudos: st.pseudos,
+      daily: dEntries.length, dailyDone: dEntries.filter(([, d]) => d.done >= 3).length },
+    days, hours,
+    top: ranked.slice(0, 10).map(([id, p], i) => ({ rank: i + 1, pseudo: p.pseudo, best: p.best, uni: p.uni || 1, seen: p.updatedAt || 0 })),
+    dailyTop: dEntries.filter(([id]) => name(id) && !data.players[id]?.flag).sort((a, b) => b[1].best - a[1].best).slice(0, 5)
+      .map(([id, d]) => ({ pseudo: name(id), best: d.best, done: d.done || 0, streak: streakOf(id, day) })),
+    unis, blackHole,
+    totals: { players: players.length, named: players.filter(([, p]) => p.pseudo).length, ranked: ranked.length, best: ranked[0]?.[1].best || 0, bestBy: ranked[0]?.[1].pseudo || null, mass, flagged: players.filter(([, p]) => p.flag).length },
+    server: { uptime: Math.floor(process.uptime()), storage: UPSTASH_URL ? "Upstash" : "fichier", loaded }
   };
 }
 
@@ -534,131 +583,17 @@ async function adminRoute(req, res, p) {
     await ready;
     return send(res, 200, JSON.stringify(data), MIME[".json"], { "Cache-Control": "no-store", "Content-Disposition": `attachment; filename="cosmos-sauvegarde-${today()}.json"` });
   }
-  const st = statsSnapshot();
-  if (p === "/admin/stats.json") return send(res, 200, JSON.stringify(st), MIME[".json"], { "Cache-Control": "no-store" });
-  const js = await joskyStats();
-  return send(res, 200, adminHtml(st, js), MIME[".html"], { "Cache-Control": "no-store" });
+  if (p === "/admin/stats.json") return send(res, 200, JSON.stringify(statsSnapshot()), MIME[".json"], { "Cache-Control": "no-store" });
+  if (p === "/admin/data.json") {
+    await ready;
+    const josky = await joskyStats();
+    return send(res, 200, JSON.stringify({ at: Date.now(), cosmos: cosmosData(), josky: { ...josky, url: JOSKY_URL } }), MIME[".json"], { "Cache-Control": "no-store" });
+  }
+  return send(res, 200, ADMIN_PAGE, MIME[".html"], { "Cache-Control": "no-store" });
 }
 const fmtN = n => Number(n).toLocaleString("fr-FR");
-const PHASES = { lobby: "Salle d'attente", initial_revealing: "Début de manche", playing: "Partie en cours", round_ended: "Fin de manche", game_over: "Partie terminée" };
-const ADMIN_JS = fs.readFileSync(path.resolve(__dirname, "admin.js"), "utf8");
-const ADMIN_PLAYERS_HTML = fs.readFileSync(path.resolve(__dirname, "admin-players.html"), "utf8");
-function adminHtml(st, js) {
-  const row = w => `<tr><td>${new Date(w.day + "T12:00:00Z").toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" })}</td><td>${w.players}</td><td>${w.newPlayers}</td><td>${w.records}</td></tr>`;
-  const up = s => s > 3600 ? Math.floor(s / 3600) + " h" : Math.max(1, Math.floor(s / 60)) + " min";
-  const jsOnline = js.state === "ok" ? js.online : 0, total = st.online + jsOnline;
-  const live = (n, label, color) => `<div class="live"><span class="dot" style="background:${n ? color : "#555b7a"};box-shadow:${n ? "0 0 0 6px " + color + "33" : "none"}"></span><div><b>${n}</b><small>${label}</small></div></div>`;
-  let joskyBlock;
-  if (js.state === "ok") {
-    const rooms = js.rooms.map(r => `<li><div class="top"><b>${esc(PHASES[r.phase] || r.phase)}</b><span>${r.idleMin ? "actif il y a " + r.idleMin + " min" : "actif à l'instant"}</span></div><div class="who">${r.players.map(pl => `<span class="p ${pl.connected ? "on" : ""}">${esc(pl.name)}</span>`).join("")}${r.bots ? `<span class="p bot">+ ${r.bots} bot${r.bots > 1 ? "s" : ""}</span>` : ""}</div></li>`).join("");
-    joskyBlock = `${live(js.online, `joueur${js.online > 1 ? "s" : ""} connecté${js.online > 1 ? "s" : ""} à une partie`, "#5ff08f")}
-<div class="grid"><div class="card"><small>Salons ouverts</small><b>${js.rooms.length}</b></div><div class="card"><small>Appareils connectés</small><b>${js.connections}</b></div></div>
-${rooms ? `<ul>${rooms}</ul>` : '<p class="note">Aucun salon ouvert pour le moment.</p>'}
-<p class="note">Serveur JoSky réveillé depuis ${up(js.uptime)}.</p>`;
-  } else {
-    const msg = {
-      off: "Pour voir JoSky ici, ajoute dans le service Cosmos sur Render les variables <code>JOSKY_URL</code> (l'adresse de JoSky) et <code>JOSKY_ADMIN_PASSWORD</code> (son mot de passe ADMIN_PASSWORD).",
-      asleep: "JoSky n'a pas répondu en 8 secondes : il est sûrement en veille (personne n'y a joué depuis 15 min). Il se réveille, recharge la page dans une minute. Adresse utilisée : <code>" + esc(JOSKY_URL) + "</code>.",
-      password: "JoSky refuse le mot de passe : vérifie que <code>JOSKY_ADMIN_PASSWORD</code> est identique à <code>ADMIN_PASSWORD</code> du service JoSky.",
-      nopage: "La page de stats de JoSky n'existe pas encore : ajoute la variable <code>ADMIN_PASSWORD</code> dans le service JoSky.",
-      badurl: "Impossible de joindre JoSky à l'adresse <code>" + esc(JOSKY_URL) + "</code> (" + esc(js.detail) + "). Vérifie la variable <code>JOSKY_URL</code> du service Cosmos : elle doit être l'adresse que tu ouvres pour jouer à JoSky, par exemple <code>https://josky-xxxx.onrender.com</code>.",
-      error: "JoSky a répondu par une erreur (" + esc(js.status) + "). Adresse utilisée : <code>" + esc(JOSKY_URL) + "</code>."
-    }[js.state];
-    joskyBlock = `<p class="note box">${msg}</p>`;
-  }
-  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Mes jeux · Stats</title><link rel="icon" href="/icon-192.png">
-<style>
-:root{--bg:#0b0d1a;--panel:#151a33;--ink:#e9ecff;--muted:#8a92c4;--flare:#ffb35c;--green:#5ff08f;color-scheme:dark}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;padding:20px max(16px,env(safe-area-inset-right)) 32px max(16px,env(safe-area-inset-left))}
-main{max-width:520px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
-h1{margin:0;font-size:1.4rem}.sub{margin:2px 0 0;color:var(--muted);font-size:.85rem}
-.hero{background:linear-gradient(135deg,#2a2266,#12402f);border-radius:18px;padding:16px 18px}
-.hero b{font-size:2.6rem;line-height:1;font-variant-numeric:tabular-nums}.hero small{display:block;color:#c3c9f0}
-.hero .split{display:flex;gap:16px;margin-top:10px;font-size:.9rem}.hero .split span{display:inline-flex;align-items:center;gap:6px}
-.chip{width:9px;height:9px;border-radius:50%;display:inline-block}
-.game{display:flex;align-items:center;gap:10px;margin-top:14px;padding-top:14px;border-top:1px solid #ffffff14}
-.game h2{margin:0;font-size:1.1rem;letter-spacing:0;text-transform:none;color:var(--ink)}
-.game img,.game .ico{width:30px;height:30px;border-radius:8px}
-.live{display:flex;align-items:center;gap:14px;background:var(--panel);border-radius:16px;padding:14px 16px}
-.dot{width:14px;height:14px;border-radius:50%;flex:none}
-.live b{font-size:2rem;line-height:1;font-variant-numeric:tabular-nums}.live small{display:block;color:var(--muted)}
-.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-.card{background:var(--panel);border-radius:14px;padding:12px 14px}.card small{color:var(--muted);font-size:.78rem}.card b{display:block;font-size:1.35rem;font-variant-numeric:tabular-nums}
-h3{margin:4px 0 0;font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:600}
-table{width:100%;border-collapse:collapse;background:var(--panel);border-radius:14px;overflow:hidden;font-variant-numeric:tabular-nums}
-th,td{padding:9px 12px;text-align:right}th:first-child,td:first-child{text-align:left}th{font-size:.75rem;color:var(--muted);font-weight:600}tr+tr td{border-top:1px solid #ffffff10}
-ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
-li{background:var(--panel);border-radius:14px;padding:12px 14px}.top{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
-.top span{color:var(--muted);font-size:.8rem;white-space:nowrap}.who{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
-.p{font-size:.85rem;padding:3px 9px;border-radius:999px;background:#ffffff12;color:var(--muted)}.p.on{color:var(--ink);background:#5ff08f22;box-shadow:inset 0 0 0 1px #5ff08f66}
-.p.on::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);margin-right:6px;vertical-align:1px}.p.bot{font-style:italic}
-p.note{color:var(--muted);font-size:.82rem;margin:0}.box{background:var(--panel);border-radius:14px;padding:12px 14px}
-code{font-size:.8rem;background:#ffffff14;padding:1px 5px;border-radius:5px;color:var(--ink)}
-.tabs{display:flex;gap:4px;background:var(--panel);border-radius:12px;padding:4px;position:sticky;top:8px;z-index:5;box-shadow:0 6px 20px #0008}
-.tabs button{flex:1;border:0;background:none;color:var(--muted);font:inherit;font-weight:600;padding:9px 8px;border-radius:9px;cursor:pointer}
-.tabs button[aria-selected=true]{background:#2a3160;color:var(--ink)}
-section{display:flex;flex-direction:column;gap:14px}section[hidden]{display:none}
-input,.btn{font:inherit;color:var(--ink);border-radius:10px;border:1px solid #ffffff22;background:#0f1328;padding:9px 12px;min-height:40px}
-input{width:100%}input:focus{outline:2px solid #6f7cff;outline-offset:1px}
-.btn{cursor:pointer;background:#232a52;border-color:transparent;font-weight:600}
-.btn:hover{background:#2e376a}.btn:disabled{opacity:.5;cursor:default}
-.btn.primary{background:#ffb35c;color:#24160a}.btn.danger{background:#5a1f2c;color:#ffd5dc}.btn.danger:hover{background:#74283a}
-.plist{display:flex;flex-direction:column;gap:8px}
-.pl{background:var(--panel);border-radius:14px;overflow:hidden}
-.pl>button{all:unset;box-sizing:border-box;width:100%;display:grid;grid-template-columns:2.4rem 1fr auto;gap:10px;align-items:center;padding:11px 14px;cursor:pointer}
-.pl>button:focus-visible{outline:2px solid #6f7cff;outline-offset:-2px}
-.rk{color:var(--muted);font-variant-numeric:tabular-nums;font-size:.85rem}
-.nm{min-width:0}.nm b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.nm small{color:var(--muted);font-size:.78rem}
-.nm .anon{color:var(--muted);font-style:italic;font-weight:500}
-.sc{font-variant-numeric:tabular-nums;font-weight:700;text-align:right}
-.on-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green);margin-left:6px;vertical-align:2px}
-.acts{display:none;border-top:1px solid #ffffff10;padding:12px 14px 14px;gap:10px;flex-direction:column}
-.pl.open .acts{display:flex}.pl.open{box-shadow:inset 0 0 0 1px #6f7cff66}
-.row{display:flex;gap:8px}.row input{flex:1;min-width:0}
-.btns{display:flex;flex-wrap:wrap;gap:8px}.btns .btn{flex:1 1 calc(50% - 8px)}
-.danger-zone{border:1px solid #74283a;border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px}
-.danger-zone h3{color:#ff9fb0}
-.log li{padding:9px 12px;font-size:.85rem}.log small{color:var(--muted);display:block;font-size:.75rem}
-.flagpill{display:inline-block;margin-left:8px;padding:1px 8px;border-radius:999px;background:#ffb35c;color:#24160a;font-size:.68rem;font-weight:700;vertical-align:2px}
-.flagbar{all:unset;box-sizing:border-box;display:flex;flex-direction:column;gap:2px;width:100%;padding:12px 14px;border-radius:14px;background:#3a2a14;box-shadow:inset 0 0 0 1.5px #ffb35c;cursor:pointer;color:var(--ink)}
-.flagbar span{color:#e8c9a0;font-size:.82rem}.flagbar.on{background:var(--panel);box-shadow:none;text-align:center;font-weight:600}.flagbar[hidden]{display:none}
-.why{background:#3a2a1466;border-radius:10px;padding:10px 12px;font-size:.85rem;display:flex;flex-direction:column;gap:6px}
-.why .det{color:#e9ecff;font-size:.8rem}.why .det b{color:#ffd9a8}
-.why ul{margin:0;padding-left:18px;color:#e8c9a0;display:block}.why li{background:none;padding:0;border-radius:0}.why p{margin:0;color:var(--muted);font-size:.8rem}
-#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#e9ecff;color:#0b0d1a;padding:10px 16px;border-radius:12px;font-weight:600;max-width:calc(100% - 32px);box-shadow:0 8px 30px #000a;transition:opacity .2s;pointer-events:none}
-#toast.err{background:#ff9fb0}#toast[hidden]{display:block;opacity:0}
-</style></head><body><main>
-<div><h1>Mes jeux · Stats</h1><p class="sub" id="sub">Mise à jour automatique toutes les 30 secondes</p></div>
-<nav class="tabs" role="tablist"><button role="tab" data-tab="stats" aria-selected="true">Statistiques</button><button role="tab" data-tab="players" aria-selected="false">Joueurs Cosmos</button></nav>
-<section id="tab-stats">
-<div class="hero"><b>${total}</b><small>joueur${total > 1 ? "s" : ""} en ce moment, tous jeux confondus</small>
-<div class="split"><span><i class="chip" style="background:var(--flare)"></i>Cosmos : ${st.online}</span><span><i class="chip" style="background:var(--green)"></i>JoSky : ${js.state === "ok" ? js.online : "–"}</span></div></div>
-
-<div class="game"><img src="/icon-192.png" alt=""><h2>Cosmos</h2></div>
-${live(st.online, `joueur${st.online > 1 ? "s" : ""} en train de jouer (3 dernières minutes)`, "#ffb35c")}
-<h3>Aujourd'hui</h3>
-<div class="grid">
-<div class="card"><small>Joueurs actifs</small><b>${st.today.players}</b></div>
-<div class="card"><small>Nouveaux joueurs</small><b>${st.today.newPlayers}</b></div>
-<div class="card"><small>Ont battu leur record</small><b>${st.today.records}</b></div>
-<div class="card"><small>Joueurs du défi du jour</small><b>${st.today.daily}</b></div>
-</div>
-<h3>7 derniers jours</h3>
-<table><tr><th>Jour</th><th>Actifs</th><th>Nouveaux</th><th>Records</th></tr>${st.week.map(row).join("") || '<tr><td colspan="4">Pas encore de données</td></tr>'}</table>
-<div class="grid">
-<div class="card"><small>Joueurs enregistrés</small><b>${fmtN(st.total.players)}</b></div>
-<div class="card"><small>Meilleur score</small><b>${fmtN(st.total.best)}</b></div>
-</div>
-${st.flagged ? `<p class="note box" style="color:#ffd9a8">⚠ ${st.flagged} score${st.flagged > 1 ? "s" : ""} mis de côté (joué${st.flagged > 1 ? "s" : ""} comme un robot) : va dans l'onglet <b>Joueurs Cosmos</b> pour décider.</p>` : ""}
-<p class="note">Serveur Cosmos réveillé depuis ${up(st.uptime)}. La version FiveM n'est pas comptée.</p>
-
-<div class="game"><span class="ico" style="background:linear-gradient(135deg,#1f7a52,#0b3024);display:grid;place-items:center;font-weight:800;color:#ffd36b">J</span><h2>JoSky</h2></div>
-${joskyBlock}
-</section>
-<section id="tab-players" hidden>${ADMIN_PLAYERS_HTML}</section>
-</main><script>${ADMIN_JS}</script></body></html>`;
-}
+// Page /admin : un seul fichier (styles et script compris) qui lit /admin/data.json
+const ADMIN_PAGE = fs.readFileSync(path.resolve(__dirname, "admin-page.html"), "utf8");
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://x");

@@ -1,0 +1,535 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Mes jeux · Stats</title><link rel="icon" href="/icon-192.png"><meta name="theme-color" content="#0b0d1a">
+<style>
+:root{--bg:#0b0d1a;--panel:#151a33;--panel2:#1b2142;--line:#ffffff14;--ink:#e9ecff;--muted:#8a92c4;--faint:#5d6594;
+  --cosmos:#ffb35c;--josky:#5ff08f;--green:#5ff08f;--warn:#ffb35c;--bad:#ff8a9e;color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-tap-highlight-color:transparent}
+body{display:flex;flex-direction:column;overflow:hidden}
+button{font:inherit;color:inherit}
+/* ---------- haut de page : titre, présence, onglets ---------- */
+.top{flex:none;padding:calc(10px + env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) 0 max(16px,env(safe-area-inset-left));background:linear-gradient(180deg,#14183a,var(--bg));border-bottom:1px solid var(--line)}
+.bar{max-width:640px;margin:0 auto;display:flex;align-items:center;gap:10px}
+.bar h1{margin:0;font-size:1.15rem;flex:1}
+.bar small{display:block;font-weight:400;font-size:.72rem;color:var(--muted)}
+.livepill{display:inline-flex;align-items:center;gap:7px;background:var(--panel);border-radius:999px;padding:6px 12px;font-size:.85rem;font-weight:700;font-variant-numeric:tabular-nums}
+.icon{border:0;background:var(--panel);border-radius:10px;width:38px;height:38px;display:grid;place-items:center;cursor:pointer}
+.icon svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.icon.spin svg{animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--faint);flex:none}
+.dot.on{background:var(--c,var(--green));box-shadow:0 0 0 4px color-mix(in srgb,var(--c,var(--green)) 25%,transparent)}
+.tabs{max-width:640px;margin:10px auto 0;display:grid;grid-template-columns:1fr 1fr;position:relative}
+.tabs button{border:0;background:none;padding:10px 6px 12px;font-weight:700;color:var(--muted);display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;transition:color .2s}
+.tabs button[aria-selected=true]{color:var(--ink)}
+.tabs .cnt{font-size:.75rem;font-variant-numeric:tabular-nums;background:var(--panel);border-radius:999px;padding:1px 8px;color:var(--muted)}
+.tabs .cnt.on{color:#0b0d1a;background:var(--c)}
+.ind{position:absolute;bottom:0;left:0;height:3px;width:50%;border-radius:3px 3px 0 0;background:var(--cosmos);transition:background .3s}
+/* ---------- pages qui glissent ---------- */
+.pager{flex:1;min-height:0;display:flex;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;overscroll-behavior-x:contain;scrollbar-width:none}
+.pager::-webkit-scrollbar{display:none}
+.page{flex:0 0 100%;min-width:0;overflow-y:auto;scroll-snap-align:start;scroll-snap-stop:always;padding:14px max(16px,env(safe-area-inset-right)) calc(28px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));overscroll-behavior-y:contain}
+.inner{max-width:640px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
+.swipehint{text-align:center;color:var(--faint);font-size:.75rem;margin-top:6px}
+/* ---------- blocs ---------- */
+h2{margin:10px 0 0;font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+h2 span{letter-spacing:0;text-transform:none;font-weight:500;color:var(--faint)}
+.box{background:var(--panel);border-radius:16px;padding:14px}
+.live{display:flex;align-items:center;gap:14px}
+.live .dot{width:14px;height:14px}
+.big{font-size:2.2rem;line-height:1;font-weight:800;font-variant-numeric:tabular-nums}
+.live small{display:block;color:var(--muted);font-size:.82rem}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.chip{font-size:.82rem;padding:3px 10px;border-radius:999px;background:#ffffff10;color:var(--muted)}
+.chip.on{color:var(--ink);background:color-mix(in srgb,var(--c) 18%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--c) 55%,transparent)}
+.kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+@media (max-width:380px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.kpi{background:var(--panel);border-radius:14px;padding:10px 12px;min-width:0}
+.kpi small{display:block;color:var(--muted);font-size:.74rem;line-height:1.25;min-height:2.5em}
+.kpi b{display:block;font-size:1.45rem;font-weight:800;font-variant-numeric:tabular-nums;margin-top:2px}
+.kpi i{display:block;font-style:normal;font-size:.72rem;color:var(--faint);font-variant-numeric:tabular-nums}
+.kpi i.up{color:var(--green)}.kpi i.down{color:var(--bad)}
+/* graphiques */
+.chart{position:relative}
+.chart svg{display:block;width:100%;height:auto;overflow:visible}
+.chart .tip{position:absolute;top:-6px;transform:translate(-50%,-100%);background:var(--ink);color:var(--bg);font-size:.78rem;font-weight:700;padding:4px 9px;border-radius:8px;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .12s}
+.chart .tip.on{opacity:1}
+.chart text{fill:var(--faint);font-size:10px;font-family:inherit}
+.chart .grid{stroke:var(--line);stroke-width:1}
+.chart .base{stroke:#ffffff30;stroke-width:1}
+.chart .hit{fill:transparent;cursor:pointer}
+.chart .bar{transition:opacity .15s}
+.chart.hovering .bar{opacity:.45}.chart.hovering .bar.sel{opacity:1}
+.sum{display:flex;justify-content:space-between;gap:10px;color:var(--muted);font-size:.8rem;margin-top:8px}
+.sum b{color:var(--ink);font-variant-numeric:tabular-nums}
+/* listes */
+.list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.list li{display:grid;grid-template-columns:2.2rem minmax(0,1fr) auto;align-items:center;gap:10px;padding:9px 2px;border-top:1px solid var(--line)}
+.list li:first-child{border-top:0}
+.list .r{color:var(--muted);font-variant-numeric:tabular-nums;font-weight:700;text-align:center}
+.list li:nth-child(1) .r{color:#ffd25a}.list li:nth-child(2) .r{color:#d6dcf0}.list li:nth-child(3) .r{color:#e0a070}
+.list .n{min-width:0}.list .n b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.list .n small{color:var(--muted);font-size:.75rem}
+.list .v{font-weight:800;font-variant-numeric:tabular-nums;text-align:right}
+.list .v small{display:block;font-weight:500;color:var(--muted);font-size:.72rem}
+.grade{display:inline-block;margin-left:6px;padding:0 7px;border-radius:999px;font-size:.62rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;vertical-align:2px;color:#1a1030;background:linear-gradient(90deg,#ffe2b0,#ffb35c)}
+.empty{color:var(--muted);font-size:.85rem;padding:6px 2px}
+.hbars{display:flex;flex-direction:column;gap:7px}
+.hrow{display:grid;grid-template-columns:5.4rem minmax(0,1fr) 2.6rem;align-items:center;gap:10px;font-size:.84rem}
+.hrow span:first-child{color:var(--muted)}
+.htrack{height:12px;border-radius:0 4px 4px 0;background:#ffffff08;overflow:hidden}
+.hfill{height:100%;border-radius:0 4px 4px 0;background:var(--c)}
+.hrow b{text-align:right;font-variant-numeric:tabular-nums}
+.facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;background:var(--line);border-radius:16px;overflow:hidden}
+.facts div{background:var(--panel);padding:11px 14px}
+.facts small{display:block;color:var(--muted);font-size:.74rem}
+.facts b{font-variant-numeric:tabular-nums;font-size:1.05rem}
+.note{color:var(--muted);font-size:.8rem;margin:0}
+.box.warn{background:#3a2a14;box-shadow:inset 0 0 0 1.5px var(--warn);color:#ffe2c0}
+.box.info{color:var(--muted);font-size:.85rem}
+code{font-size:.78rem;background:#ffffff14;padding:1px 5px;border-radius:5px;color:var(--ink);word-break:break-all}
+.cta{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;border:0;background:var(--panel2);border-radius:14px;padding:13px 14px;font-weight:700;cursor:pointer;text-align:left}
+.cta small{display:block;font-weight:400;color:var(--muted);font-size:.78rem}
+.cta .arrow{color:var(--muted);font-size:1.3rem}
+.cta.alert{background:#3a2a14;box-shadow:inset 0 0 0 1.5px var(--warn)}
+.rooms{display:flex;flex-direction:column;gap:8px}
+.room{background:var(--panel);border-radius:14px;padding:12px 14px}
+.room .head{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.room .head span{color:var(--muted);font-size:.78rem;white-space:nowrap}
+.split{display:flex;height:12px;border-radius:6px;overflow:hidden;gap:2px;margin:6px 0 8px}
+.split div{height:100%}
+.legend{display:flex;flex-wrap:wrap;gap:12px;font-size:.8rem;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
+.legend b{color:var(--ink);font-variant-numeric:tabular-nums}
+/* ---------- gestion des joueurs (panneau plein écran) ---------- */
+.sheet{position:fixed;inset:0;z-index:20;background:var(--bg);display:flex;flex-direction:column;transform:translateY(100%);transition:transform .28s cubic-bezier(.2,.8,.2,1);visibility:hidden}
+.sheet.open{transform:none;visibility:visible}
+.sheet .top{border-bottom:1px solid var(--line);padding-bottom:10px}
+.sheet .page{flex:1;scroll-snap-align:none}
+.sheet section{display:flex;flex-direction:column;gap:12px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.card{background:var(--panel);border-radius:14px;padding:12px 14px}.card small{color:var(--muted);font-size:.78rem}.card b{display:block;font-size:1.35rem;font-variant-numeric:tabular-nums}
+h3{margin:4px 0 0;font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:600}
+ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.log li{background:var(--panel);border-radius:14px}
+input,.btn{font:inherit;color:var(--ink);border-radius:10px;border:1px solid #ffffff22;background:#0f1328;padding:9px 12px;min-height:40px}
+input{width:100%}input:focus{outline:2px solid #6f7cff;outline-offset:1px}
+.btn{cursor:pointer;background:#232a52;border-color:transparent;font-weight:600}
+.btn:hover{background:#2e376a}.btn:disabled{opacity:.5;cursor:default}
+.btn.primary{background:#ffb35c;color:#24160a}.btn.danger{background:#5a1f2c;color:#ffd5dc}.btn.danger:hover{background:#74283a}
+.plist{display:flex;flex-direction:column;gap:8px}
+.pl{background:var(--panel);border-radius:14px;overflow:hidden}
+.pl>button{all:unset;box-sizing:border-box;width:100%;display:grid;grid-template-columns:2.4rem 1fr auto;gap:10px;align-items:center;padding:11px 14px;cursor:pointer}
+.pl>button:focus-visible{outline:2px solid #6f7cff;outline-offset:-2px}
+.rk{color:var(--muted);font-variant-numeric:tabular-nums;font-size:.85rem}
+.nm{min-width:0}.nm b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.nm small{color:var(--muted);font-size:.78rem}
+.nm .anon{color:var(--muted);font-style:italic;font-weight:500}
+.sc{font-variant-numeric:tabular-nums;font-weight:700;text-align:right}
+.on-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green);margin-left:6px;vertical-align:2px}
+.acts{display:none;border-top:1px solid #ffffff10;padding:12px 14px 14px;gap:10px;flex-direction:column}
+.pl.open .acts{display:flex}.pl.open{box-shadow:inset 0 0 0 1px #6f7cff66}
+.row{display:flex;gap:8px}.row input{flex:1;min-width:0}
+.btns{display:flex;flex-wrap:wrap;gap:8px}.btns .btn{flex:1 1 calc(50% - 8px)}
+.danger-zone{border:1px solid #74283a;border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.danger-zone h3{color:#ff9fb0}
+.log li{padding:9px 12px;font-size:.85rem}.log small{color:var(--muted);display:block;font-size:.75rem}
+.flagpill{display:inline-block;margin-left:8px;padding:1px 8px;border-radius:999px;background:#ffb35c;color:#24160a;font-size:.68rem;font-weight:700;vertical-align:2px}
+.flagbar{all:unset;box-sizing:border-box;display:flex;flex-direction:column;gap:2px;width:100%;padding:12px 14px;border-radius:14px;background:#3a2a14;box-shadow:inset 0 0 0 1.5px #ffb35c;cursor:pointer;color:var(--ink)}
+.flagbar span{color:#e8c9a0;font-size:.82rem}.flagbar.on{background:var(--panel);box-shadow:none;text-align:center;font-weight:600}.flagbar[hidden]{display:none}
+.why{background:#3a2a1466;border-radius:10px;padding:10px 12px;font-size:.85rem;display:flex;flex-direction:column;gap:6px}
+.why .det{color:#e9ecff;font-size:.8rem}.why .det b{color:#ffd9a8}
+.why ul{margin:0;padding-left:18px;color:#e8c9a0;display:block}.why li{background:none;padding:0;border-radius:0}.why p{margin:0;color:var(--muted);font-size:.8rem}
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#e9ecff;color:#0b0d1a;padding:10px 16px;border-radius:12px;font-weight:600;max-width:calc(100% - 32px);box-shadow:0 8px 30px #000a;transition:opacity .2s;pointer-events:none}
+#toast.err{background:#ff9fb0}#toast[hidden]{display:block;opacity:0}
+</style></head><body>
+<header class="top">
+  <div class="bar">
+    <h1>Mes jeux<small id="updated">Chargement…</small></h1>
+    <span class="livepill" id="livepill" title="Joueurs en ce moment, tous jeux confondus"><span class="dot" id="livedot"></span><span id="livetotal">–</span></span>
+    <button class="icon" id="refresh" aria-label="Actualiser"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/></svg></button>
+  </div>
+  <nav class="tabs" role="tablist" aria-label="Jeux">
+    <button role="tab" data-i="0" aria-selected="true" style="--c:var(--cosmos)">Cosmos <span class="cnt" id="cnt-cosmos">–</span></button>
+    <button role="tab" data-i="1" aria-selected="false" style="--c:var(--josky)">JoSky <span class="cnt" id="cnt-josky">–</span></button>
+    <span class="ind" id="ind"></span>
+  </nav>
+</header>
+<main class="pager" id="pager">
+  <section class="page" id="p-cosmos" role="tabpanel" aria-label="Cosmos"><div class="inner"><p class="note">Chargement…</p></div></section>
+  <section class="page" id="p-josky" role="tabpanel" aria-label="JoSky"><div class="inner"><p class="note">Chargement…</p></div></section>
+</main>
+
+<div class="sheet" id="sheet" role="dialog" aria-label="Joueurs Cosmos" aria-hidden="true">
+  <header class="top"><div class="bar">
+    <button class="icon" id="sheetClose" aria-label="Retour aux stats"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
+    <h1>Joueurs Cosmos<small>Les modifications sont enregistrées tout de suite</small></h1>
+  </div></header>
+  <div class="page"><div class="inner"><section>
+<div class="grid">
+<div class="card"><small>Joueurs au classement</small><b id="nRanked">–</b></div>
+<div class="card"><small>Au défi du jour</small><b id="nDaily">–</b></div>
+</div>
+<button class="flagbar" id="flagbar" hidden></button>
+<input id="q" type="search" placeholder="Chercher un pseudo…" autocomplete="off" aria-label="Chercher un pseudo">
+<p class="note" id="hint">Touche un joueur pour modifier son score, le renommer ou le supprimer.</p>
+<div class="plist" id="plist"><p class="note">Chargement…</p></div>
+<button class="btn" id="more" hidden>Afficher plus</button>
+
+<h3>Dernières actions</h3>
+<ul class="log" id="log"><li class="note">Aucune action pour le moment.</li></ul>
+
+<div class="danger-zone">
+<h3>Zone sensible</h3>
+<p class="note">Télécharge une sauvegarde avant une grosse modification : elle contient tout le classement.</p>
+<a class="btn" href="/admin/sauvegarde.json" download style="text-align:center;text-decoration:none;display:flex;align-items:center;justify-content:center">Télécharger une sauvegarde</a>
+<button class="btn danger" data-global="resetDaily">Vider le défi du jour</button>
+<button class="btn danger" data-global="resetAll">Remettre tout le classement à zéro</button>
+</div>
+<div id="toast" hidden role="status" aria-live="polite"></div>
+</section></div></div>
+</div>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const fmt = n => Number(n || 0).toLocaleString("fr-FR");
+  const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const ago = t => { if (!t) return "jamais"; const m = Math.floor((Date.now() - t) / 60000); if (m < 1) return "à l'instant"; if (m < 60) return "il y a " + m + " min"; const h = Math.floor(m / 60); if (h < 24) return "il y a " + h + " h"; const d = Math.floor(h / 24); return "il y a " + d + " j"; };
+  const up = s => s >= 86400 ? Math.floor(s / 86400) + " j " + Math.floor(s % 86400 / 3600) + " h" : s >= 3600 ? Math.floor(s / 3600) + " h " + Math.floor(s % 3600 / 60) + " min" : Math.max(1, Math.floor(s / 60)) + " min";
+  const dayShort = k => new Date(k + "T12:00:00Z").toLocaleDateString("fr-FR", { weekday: "short", day: "numeric" });
+  const dayLong = k => new Date(k + "T12:00:00Z").toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+  const plural = (n, w, ws) => n + " " + (n > 1 ? (ws || w + "s") : w);
+  const pct = (a, b) => b ? Math.round(a / b * 100) + " %" : "–";
+  const GRADES = [[10e6, "Créateur"], [5e6, "Quasar"], [2.5e6, "Supernova"], [1e6, "Nova"]];
+  const grade = n => { const g = GRADES.find(([min]) => n >= min); return g ? `<span class="grade">${g[1]}</span>` : ""; };
+
+  /* ---------- glisser d'un jeu à l'autre ---------- */
+  const pager = $("pager"), tabs = [...document.querySelectorAll(".tabs button")], ind = $("ind"), COLORS = ["var(--cosmos)", "var(--josky)"];
+  let page = 0;
+  try { page = Math.min(1, Math.max(0, +localStorage.getItem("stats-page") || 0)); } catch (e) {}
+  function syncTabs(pos) {
+    ind.style.transform = `translateX(${pos * 100}%)`;
+    const i = Math.round(pos);
+    ind.style.background = COLORS[i];
+    tabs.forEach((b, j) => b.setAttribute("aria-selected", j === i));
+    if (i !== page) { page = i; try { localStorage.setItem("stats-page", i); } catch (e) {} }
+  }
+  pager.addEventListener("scroll", () => syncTabs(pager.scrollLeft / pager.clientWidth), { passive: true });
+  tabs.forEach(b => b.addEventListener("click", () => pager.scrollTo({ left: +b.dataset.i * pager.clientWidth, behavior: "smooth" })));
+  requestAnimationFrame(() => { pager.scrollLeft = page * pager.clientWidth; syncTabs(page); });
+  addEventListener("resize", () => { pager.scrollLeft = page * pager.clientWidth; });
+
+  /* ---------- graphique en barres (une seule série, survol/toucher = valeur) ---------- */
+  function bars({ values, labels, tips, color, every = 1, highlightLast = false, height = 120 }) {
+    const W = 320, H = height, top = 14, bottom = 18, n = values.length, max = Math.max(1, ...values);
+    const step = W / n, gap = 2, bw = Math.max(2, step - gap);
+    const nice = max <= 4 ? max : Math.ceil(max / 4) * 4;
+    const y = v => top + (H - top - bottom) * (1 - v / nice);
+    let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(tips.map((t, i) => t).join(", "))}">`;
+    for (const g of [0.5, 1]) { const v = nice * g, yy = y(v); svg += `<line class="grid" x1="0" x2="${W}" y1="${yy}" y2="${yy}"/><text x="0" y="${yy - 3}">${fmt(v)}</text>`; }
+    values.forEach((v, i) => {
+      const x = i * step + gap / 2, h = (H - top - bottom) * (v / nice), r = Math.min(4, bw / 2, h);
+      const yTop = H - bottom - h;
+      const op = highlightLast && i < n - 1 ? 0.55 : 1;
+      if (v > 0) svg += `<path class="bar" data-i="${i}" fill="${color}" opacity="${op}" d="M${x},${H - bottom} V${yTop + r} Q${x},${yTop} ${x + r},${yTop} H${x + bw - r} Q${x + bw},${yTop} ${x + bw},${yTop + r} V${H - bottom} Z"/>`;
+      if ((i % every === 0 && n - 1 - i >= every) || i === n - 1) svg += `<text x="${x + bw / 2}" y="${H - 4}" text-anchor="middle">${esc(labels[i])}</text>`;
+      svg += `<rect class="hit" data-i="${i}" x="${i * step}" y="0" width="${step}" height="${H}"/>`;
+    });
+    svg += `<line class="base" x1="0" x2="${W}" y1="${H - bottom}" y2="${H - bottom}"/></svg>`;
+    return `<div class="chart" data-tips='${esc(JSON.stringify(tips))}'>${svg}<div class="tip"></div></div>`;
+  }
+  // survol ou toucher d'une barre : sa valeur au-dessus
+  document.addEventListener("pointerover", showTip);
+  document.addEventListener("pointerdown", showTip);
+  function showTip(e) {
+    const hit = e.target.closest?.(".chart .hit");
+    document.querySelectorAll(".chart.hovering").forEach(c => { if (!hit || !c.contains(hit)) { c.classList.remove("hovering"); c.querySelector(".tip").classList.remove("on"); } });
+    if (!hit) return;
+    const chart = hit.closest(".chart"), i = +hit.dataset.i, tips = JSON.parse(chart.dataset.tips), tip = chart.querySelector(".tip");
+    const box = hit.getBoundingClientRect(), cb = chart.getBoundingClientRect();
+    tip.textContent = tips[i];
+    tip.style.left = Math.min(cb.width - 60, Math.max(60, box.left - cb.left + box.width / 2)) + "px";
+    tip.classList.add("on"); chart.classList.add("hovering");
+    chart.querySelectorAll(".bar").forEach(b => b.classList.toggle("sel", +b.dataset.i === i));
+  }
+
+  const kpi = (label, value, prev, unit = "") => {
+    let d = "";
+    if (prev != null) { const diff = value - prev; d = `<i class="${diff > 0 ? "up" : diff < 0 ? "down" : ""}">${diff > 0 ? "+" : ""}${fmt(diff)} vs hier</i>`; }
+    return `<div class="kpi"><small>${label}</small><b>${typeof value === "number" ? fmt(value) : value}${unit}</b>${d}</div>`;
+  };
+  const live = (n, label, c, names, anon) => `<div class="box" style="--c:${c}"><div class="live"><span class="dot ${n ? "on" : ""}"></span><div><span class="big">${n}</span><small>${label}</small></div></div>${(names && names.length) || anon ? `<div class="chips">${(names || []).map(x => `<span class="chip on">${esc(x)}</span>`).join("")}${anon ? `<span class="chip">+ ${plural(anon, "joueur")} sans pseudo</span>` : ""}</div>` : ""}</div>`;
+  const hbars = (rows, c) => { const max = Math.max(1, ...rows.map(r => r[1])); return `<div class="hbars" style="--c:${c}">${rows.map(([l, v]) => `<div class="hrow"><span>${esc(l)}</span><div class="htrack"><div class="hfill" style="width:${v / max * 100}%"></div></div><b>${fmt(v)}</b></div>`).join("")}</div>`; };
+
+  /* ---------- page Cosmos ---------- */
+  function renderCosmos(c) {
+    const t = c.today, y = c.days[c.days.length - 2] || {}, last7 = c.days.slice(-7);
+    const sum = k => c.days.reduce((n, d) => n + d[k], 0);
+    const peakH = c.hours.indexOf(Math.max(...c.hours));
+    const unis = Object.entries(c.unis).sort((a, b) => a[0] - b[0]).map(([u, n]) => [u >= 6 ? "Univers 6 et +" : "Univers " + u, n]);
+    return `
+${c.totals.flagged ? `<button class="cta alert" data-open="flag"><span>⚠ ${plural(c.totals.flagged, "score")} à vérifier<small>Joué${c.totals.flagged > 1 ? "s" : ""} comme un robot, caché${c.totals.flagged > 1 ? "s" : ""} du classement</small></span><span class="arrow">›</span></button>` : ""}
+${live(c.online, c.online > 1 ? "joueurs en train de jouer (3 dernières min)" : "joueur en train de jouer (3 dernières min)", "var(--cosmos)", c.onlineNames, c.onlineAnon)}
+
+<h2>Aujourd'hui <span>${dayLong(t.day)}</span></h2>
+<div class="kpis">
+${kpi("Joueurs actifs", t.players, y.players)}
+${kpi("Nouveaux joueurs", t.newPlayers, y.newPlayers)}
+${kpi("Records battus", t.records, y.records)}
+${kpi("Ont joué le défi", t.daily, y.daily)}
+${kpi("Défi réussi (3/3)", t.dailyDone, y.dailyDone)}
+${kpi("Taux de réussite", pct(t.dailyDone, t.daily))}
+</div>
+
+<h2>Joueurs actifs par jour <span>14 jours</span></h2>
+<div class="box">${bars({ values: c.days.map(d => d.players), labels: c.days.map(d => dayShort(d.day)), tips: c.days.map(d => `${dayShort(d.day)} : ${plural(d.players, "joueur")}, ${d.newPlayers} nouveau${d.newPlayers > 1 ? "x" : ""}`), color: "var(--cosmos)", every: 3, highlightLast: true })}
+<div class="sum"><span>Sur 7 jours <b>${fmt(last7.reduce((n, d) => n + d.players, 0))}</b> présences</span><span>Nouveaux sur 14 j <b>${fmt(sum("newPlayers"))}</b></span></div></div>
+
+<h2>Heures d'affluence <span>7 derniers jours</span></h2>
+<div class="box">${c.hours.some(Boolean) ? bars({ values: c.hours, labels: c.hours.map((_, h) => h + "h"), tips: c.hours.map((n, h) => `${h}h–${h + 1}h : ${plural(n, "joueur")}`), color: "var(--cosmos)", every: 6, height: 100 }) + `<div class="sum"><span>Heure la plus fréquentée</span><b>${peakH}h – ${peakH + 1}h</b></div>` : '<p class="empty">Les heures s\'affichent à partir d\'aujourd\'hui : il faut quelques parties pour les remplir.</p>'}</div>
+
+<h2>Classement général <span>top 10</span></h2>
+<div class="box"><ol class="list">${c.top.length ? c.top.map(p => `<li><span class="r">${p.rank}</span><span class="n"><b>${esc(p.pseudo)}${grade(p.best)}</b><small>Univers ${p.uni} · ${ago(p.seen)}</small></span><span class="v">${fmt(p.best)}</span></li>`).join("") : '<li class="empty">Personne au classement pour l\'instant.</li>'}</ol></div>
+<button class="cta" data-open="all"><span>Gérer les joueurs<small>Modifier un score, renommer, supprimer, sauvegarder</small></span><span class="arrow">›</span></button>
+
+<h2>Défi du jour <span>${fmt(t.daily)} participant${t.daily > 1 ? "s" : ""}</span></h2>
+<div class="box"><ol class="list">${c.dailyTop.length ? c.dailyTop.map((p, i) => `<li><span class="r">${i + 1}</span><span class="n"><b>${esc(p.pseudo)}</b><small>${p.done}/3 missions${p.streak > 1 ? ` · série de ${p.streak} j` : ""}</small></span><span class="v">${fmt(p.best)}</span></li>`).join("") : '<li class="empty">Personne n\'a encore joué le défi aujourd\'hui.</li>'}</ol></div>
+<div class="box">${bars({ values: c.days.map(d => d.daily), labels: c.days.map(d => dayShort(d.day)), tips: c.days.map(d => `${dayShort(d.day)} : ${d.daily} au défi, ${d.dailyDone} réussi${d.dailyDone > 1 ? "s" : ""}`), color: "var(--cosmos)", every: 3, highlightLast: true, height: 90 })}<p class="note" style="margin-top:6px">Participants au défi par jour, sur 14 jours.</p></div>
+
+<h2>Jusqu'où vont les joueurs <span>meilleure partie</span></h2>
+<div class="box">${unis.length ? hbars(unis, "var(--cosmos)") : '<p class="empty">Pas encore de données.</p>'}
+<div class="sum"><span>Ont déjà formé un trou noir</span><b>${fmt(c.blackHole)} · ${pct(c.blackHole, Object.values(c.unis).reduce((a, b) => a + b, 0))}</b></div></div>
+
+<h2>Depuis le début</h2>
+<div class="facts">
+<div><small>Joueurs enregistrés</small><b>${fmt(c.totals.players)}</b></div>
+<div><small>Avec un pseudo</small><b>${fmt(c.totals.named)}</b></div>
+<div><small>Meilleur score</small><b>${fmt(c.totals.best)}</b>${c.totals.bestBy ? `<small>par ${esc(c.totals.bestBy)}</small>` : ""}</div>
+<div><small>Masse totale accumulée</small><b>${fmt(c.totals.mass)}</b></div>
+</div>
+
+<h2>Serveur</h2>
+<div class="facts">
+<div><small>Réveillé depuis</small><b>${up(c.server.uptime)}</b></div>
+<div><small>Sauvegarde</small><b>${c.server.storage}${c.server.loaded ? "" : " ⚠"}</b></div>
+</div>
+<p class="note">Seule la version web est comptée : la version FiveM a son propre classement dans ta base MySQL.</p>
+<p class="swipehint">Glisse vers la gauche pour JoSky ›</p>`;
+  }
+
+  /* ---------- page JoSky ---------- */
+  const PHASES = { lobby: "Salle d'attente", initial_revealing: "Début de manche", playing: "Partie en cours", round_ended: "Fin de manche", game_over: "Partie terminée" };
+  function joskyProblem(j) {
+    const url = j.url ? `<code>${esc(j.url)}</code>` : "";
+    return {
+      off: "Pour voir JoSky ici, ajoute dans le service Cosmos sur Render les variables <code>JOSKY_URL</code> (l'adresse de JoSky) et <code>JOSKY_ADMIN_PASSWORD</code> (son mot de passe ADMIN_PASSWORD).",
+      asleep: `JoSky n'a pas répondu en 8 secondes : il est sûrement en veille (personne n'y a joué depuis 15 min). Il se réveille, l'actualisation suivante devrait l'afficher. Adresse : ${url}.`,
+      password: "JoSky refuse le mot de passe : <code>JOSKY_ADMIN_PASSWORD</code> doit être identique à <code>ADMIN_PASSWORD</code> du service JoSky.",
+      nopage: "La page de stats de JoSky n'existe pas : ajoute la variable <code>ADMIN_PASSWORD</code> dans le service JoSky.",
+      badurl: `Impossible de joindre JoSky à l'adresse ${url} (${esc(j.detail)}). Vérifie <code>JOSKY_URL</code> dans le service Cosmos.`,
+      error: `JoSky a répondu par une erreur (${esc(j.status)}). Adresse : ${url}.`
+    }[j.state] || "JoSky est injoignable.";
+  }
+  function renderJosky(j) {
+    if (j.state !== "ok") return `${live(0, "JoSky n'est pas joignable pour le moment", "var(--josky)")}<div class="box info">${joskyProblem(j)}</div><p class="swipehint">‹ Glisse vers la droite pour Cosmos</p>`;
+    const h = j.history || null, days = h?.days || [], t = days[days.length - 1] || {}, y = days[days.length - 2] || {};
+    const rooms = j.rooms || [];
+    const names = rooms.flatMap(r => r.players.filter(p => p.connected).map(p => p.name));
+    const sum = k => days.reduce((n, d) => n + (d[k] || 0), 0);
+    const sumSolo = sum("solo"), sumMulti = sum("multi"), sumGames = sumSolo + sumMulti;
+    const finished = sum("finished"), botWins = sum("botWins");
+    const avgMins = (() => { const f = days.filter(d => d.avgMinutes != null); return f.length ? Math.round(f.reduce((n, d) => n + d.avgMinutes * d.finished, 0) / Math.max(1, f.reduce((n, d) => n + d.finished, 0))) : null; })();
+    const hours = h?.hours || [], peakH = hours.indexOf(Math.max(...hours));
+    const roomHtml = rooms.length ? `<div class="rooms">${rooms.map(r => `<div class="room"><div class="head"><b>${esc(PHASES[r.phase] || r.phase)}</b><span>${r.idleMin ? "actif il y a " + r.idleMin + " min" : "actif à l'instant"}</span></div><div class="chips" style="--c:var(--josky);margin-top:8px">${r.players.map(p => `<span class="chip ${p.connected ? "on" : ""}">${esc(p.name)}</span>`).join("")}${r.bots ? `<span class="chip">+ ${plural(r.bots, "bot")}</span>` : ""}</div></div>`).join("")}</div>` : '<div class="box"><p class="empty">Aucun salon ouvert en ce moment.</p></div>';
+    return `
+${live(j.online, j.online > 1 ? "joueurs connectés à une partie" : "joueur connecté à une partie", "var(--josky)", names, 0)}
+<h2>Salons ouverts <span>${plural(rooms.length, "salon")} · ${plural(j.connections, "appareil")}</span></h2>
+${roomHtml}
+${h ? `
+<h2>Aujourd'hui <span>${dayLong(t.day || new Date().toISOString().slice(0, 10))}</span></h2>
+<div class="kpis">
+${kpi("Joueurs", t.players || 0, y.players)}
+${kpi("Nouveaux joueurs", t.newPlayers || 0, y.newPlayers)}
+${kpi("Parties lancées", t.games || 0, y.games)}
+${kpi("Parties finies", t.finished || 0, y.finished)}
+${kpi("Manches jouées", t.rounds || 0, y.rounds)}
+${kpi("Pic simultané", t.peak || 0, y.peak)}
+</div>
+
+<h2>Parties lancées par jour <span>14 jours</span></h2>
+<div class="box">${bars({ values: days.map(d => d.games), labels: days.map(d => dayShort(d.day)), tips: days.map(d => `${dayShort(d.day)} : ${plural(d.games, "partie")}, ${d.finished} finie${d.finished > 1 ? "s" : ""}`), color: "var(--josky)", every: 3, highlightLast: true })}
+<div class="sum"><span>Parties sur 14 j <b>${fmt(sum("games"))}</b></span><span>Manches <b>${fmt(sum("rounds"))}</b></span></div></div>
+
+<h2>Joueurs par jour <span>14 jours</span></h2>
+<div class="box">${bars({ values: days.map(d => d.players), labels: days.map(d => dayShort(d.day)), tips: days.map(d => `${dayShort(d.day)} : ${plural(d.players, "joueur")}, pic ${d.peak} en même temps`), color: "var(--josky)", every: 3, highlightLast: true, height: 100 })}</div>
+
+<h2>Heures d'affluence <span>7 derniers jours</span></h2>
+<div class="box">${hours.some(Boolean) ? bars({ values: hours, labels: hours.map((_, i) => i + "h"), tips: hours.map((n, i) => `${i}h–${i + 1}h : ${plural(n, "joueur")}`), color: "var(--josky)", every: 6, height: 100 }) + `<div class="sum"><span>Heure la plus fréquentée</span><b>${peakH}h – ${peakH + 1}h</b></div>` : '<p class="empty">Les heures se remplissent au fil des parties, à partir de maintenant.</p>'}</div>
+
+<h2>Comment on joue <span>14 jours</span></h2>
+<div class="box">
+${sumGames ? `<div class="split"><div style="flex:${sumSolo};background:var(--josky)"></div><div style="flex:${sumMulti};background:#7fb8ff"></div></div>
+<div class="legend"><span><i style="background:var(--josky)"></i>Seul contre des bots <b>${pct(sumSolo, sumGames)}</b></span><span><i style="background:#7fb8ff"></i>Entre amis <b>${pct(sumMulti, sumGames)}</b></span></div>` : '<p class="empty">Pas encore de partie enregistrée.</p>'}
+<div class="facts" style="margin-top:12px">
+<div><small>Parties avec au moins un bot</small><b>${pct(sum("withBots"), sumGames)}</b></div>
+<div><small>Gagnées par un bot</small><b>${pct(botWins, finished)}</b></div>
+<div><small>Parties menées au bout</small><b>${pct(finished, sum("games"))}</b></div>
+<div><small>Durée moyenne d'une partie</small><b>${avgMins != null ? avgMins + " min" : "–"}</b></div>
+</div></div>
+
+<h2>Les habitués <span>jours joués sur 14</span></h2>
+<div class="box"><ol class="list">${(h.regulars || []).length ? h.regulars.map((r, i) => `<li><span class="r">${i + 1}</span><span class="n"><b>${esc(r.name)}</b></span><span class="v">${plural(r.days, "jour")}</span></li>`).join("") : '<li class="empty">Pas encore d\'habitués.</li>'}</ol></div>
+
+<h2>Depuis le début du suivi</h2>
+<div class="facts">
+<div><small>Joueurs différents</small><b>${fmt(h.total.players)}</b></div>
+<div><small>Parties lancées</small><b>${fmt(h.total.games)}</b></div>
+<div><small>Parties finies</small><b>${fmt(h.total.finished)}</b></div>
+<div><small>Manches jouées</small><b>${fmt(h.total.rounds)}</b></div>
+</div>` : `<div class="box info">L'historique de JoSky (parties, joueurs, heures d'affluence) apparaîtra dès que JoSky aura été mis à jour sur Render.</div>`}
+
+<h2>Serveur</h2>
+<div class="facts"><div><small>Réveillé depuis</small><b>${up(j.uptime)}</b></div><div><small>Appareils connectés</small><b>${fmt(j.connections)}</b></div></div>
+<p class="swipehint">‹ Glisse vers la droite pour Cosmos</p>`;
+  }
+
+  /* ---------- chargement et actualisation ---------- */
+  let loading = false, lastAt = 0;
+  async function refresh() {
+    if (loading || document.hidden || $("sheet").classList.contains("open")) return;
+    loading = true; $("refresh").classList.add("spin");
+    try {
+      const r = await fetch("/admin/data.json", { cache: "no-store" });
+      if (!r.ok) throw new Error(r.status);
+      const d = await r.json();
+      const keep = ["p-cosmos", "p-josky"].map(id => $(id).scrollTop);
+      $("p-cosmos").firstElementChild.innerHTML = renderCosmos(d.cosmos);
+      $("p-josky").firstElementChild.innerHTML = renderJosky(d.josky);
+      ["p-cosmos", "p-josky"].forEach((id, i) => { $(id).scrollTop = keep[i]; });
+      const jo = d.josky.state === "ok" ? d.josky.online : 0, total = d.cosmos.online + jo;
+      $("livetotal").textContent = total + " en ligne";
+      $("livedot").classList.toggle("on", total > 0);
+      const setCnt = (id, n, ok) => { const el = $(id); el.textContent = ok ? n : "–"; el.classList.toggle("on", ok && n > 0); };
+      setCnt("cnt-cosmos", d.cosmos.online, true);
+      setCnt("cnt-josky", jo, d.josky.state === "ok");
+      lastAt = Date.now(); tick();
+    } catch (e) {
+      $("updated").textContent = "Impossible de charger les stats, nouvel essai dans 30 s";
+    } finally { loading = false; $("refresh").classList.remove("spin"); }
+  }
+  function tick() { if (lastAt) { const s = Math.round((Date.now() - lastAt) / 1000); $("updated").textContent = s < 5 ? "À jour" : "Mis à jour il y a " + (s < 60 ? s + " s" : Math.floor(s / 60) + " min"); } }
+  setInterval(tick, 5000);
+  setInterval(refresh, 30000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
+  $("refresh").addEventListener("click", refresh);
+  refresh();
+
+  /* ---------- panneau de gestion des joueurs ---------- */
+  function openSheet(onlyFlagged) {
+    $("sheet").classList.add("open"); $("sheet").setAttribute("aria-hidden", "false");
+    onlyFlag = !!onlyFlagged; openId = null;
+    load();
+    try { history.pushState({ sheet: 1 }, "", "#joueurs"); } catch (e) {}
+  }
+  function closeSheet(fromHistory) {
+    if (!$("sheet").classList.contains("open")) return;
+    $("sheet").classList.remove("open"); $("sheet").setAttribute("aria-hidden", "true");
+    if (!fromHistory) { try { history.back(); } catch (e) {} }
+    setTimeout(refresh, 300);
+  }
+  document.addEventListener("click", e => { const b = e.target.closest("[data-open]"); if (b) openSheet(b.dataset.open === "flag"); });
+  $("sheetClose").addEventListener("click", () => closeSheet(false));
+  addEventListener("popstate", () => closeSheet(true));
+  addEventListener("keydown", e => { if (e.key === "Escape") closeSheet(false); });
+  if (location.hash === "#joueurs") setTimeout(() => openSheet(false), 0);
+  /* ---------- joueurs ---------- */
+  let players = null, log = [], openId = null, limit = 50, onlyFlag = false;
+  const toast = (msg, err) => { const t = $("toast"); t.textContent = msg; t.className = err ? "err" : ""; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, 3200); };
+  function take(r) { players = r.players; log = r.log || []; render(); }
+  async function load() {
+    try { const r = await fetch("/admin/players.json", { cache: "no-store" }); take(await r.json()); }
+    catch (e) { $("plist").innerHTML = '<p class="note">Impossible de charger les joueurs. Recharge la page.</p>'; }
+  }
+  async function act(body, okMsg, btn) {
+    if (btn) btn.disabled = true;
+    try {
+      const r = await fetch("/admin/api", { method: "POST", headers: { "Content-Type": "application/json", "X-Admin": "1" }, body: JSON.stringify(body) });
+      const j = await r.json().catch(() => ({}));
+      if (!j.ok) { toast(j.error || "Erreur du serveur.", true); return false; }
+      take(j); toast(okMsg); return true;
+    } catch (e) { toast("Le serveur ne répond pas.", true); return false; }
+    finally { if (btn) btn.disabled = false; }
+  }
+  function row(p) {
+    const name = (p.pseudo ? esc(p.pseudo) : '<span class="anon">sans pseudo</span>') + (p.flag ? '<span class="flagpill">À vérifier</span>' : "");
+    const day = p.dayBest ? ` · défi ${fmt(p.dayBest)} (${p.done}/3)` : "";
+    return `<div class="pl${openId === p.id ? " open" : ""}" data-id="${p.id}">
+<button aria-expanded="${openId === p.id}"><span class="rk">${p.rank ? "#" + p.rank : "–"}</span>
+<span class="nm"><b>${name}${p.online ? '<i class="on-dot" title="En train de jouer"></i>' : ""}</b><small>Univers ${p.uni}${day} · ${ago(p.seen)}</small></span>
+<span class="sc">${fmt(p.best)}</span></button>
+<div class="acts">
+${p.flag ? `<div class="why"><b>Pourquoi ce score est mis de côté :</b><ul>${p.flag.map(r => `<li>${esc(r)}</li>`).join("")}</ul>${p.play ? `<p class="det">Dernière partie envoyée : <b>${fmt(p.play.m)} coups</b>, dont <b>${fmt(p.play.gh)} sans toucher</b> (${p.play.m ? Math.round(p.play.gh / p.play.m * 100) : 0} %) · régularité ${p.play.cv >= 1 ? "normale" : String(p.play.cv).replace(".", ",") + (p.play.cv < 0.12 ? " (machine)" : p.play.cv < 0.3 ? " (assez régulier)" : " (humain)")}${p.play.rate != null ? ` · ${String(p.play.rate).replace(".", ",")} coups/s` : ""} · masse ${fmt(p.play.s)}. Signalé ${ago(p.flagAt)}.</p>` : ""}
+<p>Il est caché du classement. Valide-le si tu connais ce joueur, sinon remets-le à 0.</p><button class="btn primary" data-do="approve">Valider ce score</button></div>` : ""}
+<form class="row" data-do="setScore"><input type="number" inputmode="numeric" min="0" step="1" value="${p.best}" aria-label="Nouveau score"><button class="btn primary">Changer le score</button></form>
+<form class="row" data-do="rename"><input type="text" maxlength="16" value="${p.pseudo ? esc(p.pseudo) : ""}" placeholder="Nouveau pseudo" aria-label="Nouveau pseudo"><button class="btn">Renommer</button></form>
+<div class="btns">
+<button class="btn" data-do="resetScore">Remettre à 0</button>
+${p.dayBest ? '<button class="btn" data-do="clearDaily">Effacer son défi du jour</button>' : ""}
+${p.pseudo ? '<button class="btn" data-do="unname">Retirer le pseudo</button>' : ""}
+<button class="btn danger" data-do="remove">Supprimer du classement</button>
+</div></div></div>`;
+  }
+  function render() {
+    const q = $("q").value.trim().toLowerCase();
+    const flagged = players.filter(p => p.flag).length;
+    if (!flagged) onlyFlag = false;
+    const fb = $("flagbar"); fb.hidden = !flagged;
+    fb.innerHTML = onlyFlag ? "Afficher tous les joueurs" : `<b>⚠ ${flagged} score${flagged > 1 ? "s" : ""} à vérifier</b><span>Joué${flagged > 1 ? "s" : ""} comme un robot, caché${flagged > 1 ? "s" : ""} du classement. Touche pour voir.</span>`;
+    fb.classList.toggle("on", onlyFlag);
+    const list = players.filter(p => (!onlyFlag || p.flag) && (!q || (p.pseudo || "").toLowerCase().includes(q)));
+    $("nRanked").textContent = fmt(players.filter(p => p.rank).length);
+    $("nDaily").textContent = fmt(players.filter(p => p.dayBest).length);
+    $("plist").innerHTML = list.slice(0, limit).map(row).join("") || '<p class="note">Aucun joueur trouvé.</p>';
+    $("more").hidden = list.length <= limit;
+    $("log").innerHTML = log.length ? log.slice(0, 15).map(l => `<li>${esc(l.text)}<small>${new Date(l.at).toLocaleString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</small></li>`).join("") : '<li class="note">Aucune action pour le moment.</li>';
+  }
+  $("q").addEventListener("input", () => { limit = 50; render(); });
+  $("flagbar").addEventListener("click", () => { onlyFlag = !onlyFlag; openId = null; render(); });
+  $("more").addEventListener("click", () => { limit += 50; render(); });
+
+  const plist = $("plist");
+  plist.addEventListener("click", async e => {
+    const card = e.target.closest(".pl"); if (!card) return;
+    const id = card.dataset.id, p = players.find(x => x.id === id), who = p.pseudo || "ce joueur";
+    if (e.target.closest(".pl > button")) { openId = openId === id ? null : id; render(); return; }
+    const b = e.target.closest("button[data-do]"); if (!b) return;
+    const d = b.dataset.do;
+    if (d === "approve" && confirm(`Valider le score de ${who} ? Il réapparaît au classement. Ses prochaines parties resteront surveillées.`)) act({ action: "approve", id }, "Score validé", b);
+    if (d === "resetScore" && confirm(`Remettre le score de ${who} à 0 ?`)) act({ action: "resetScore", id }, "Score remis à 0", b);
+    if (d === "clearDaily" && confirm(`Effacer le score de ${who} au défi du jour ?`)) act({ action: "clearDaily", id }, "Défi du jour effacé", b);
+    if (d === "unname" && confirm(`Retirer le pseudo « ${p.pseudo} » ? Le joueur disparaît du classement jusqu'à ce qu'il en choisisse un autre.`)) act({ action: "rename", id, pseudo: "" }, "Pseudo retiré", b);
+    if (d === "remove" && confirm(`Supprimer ${who} du classement ? Son score et ses défis seront effacés.`)) { if (await act({ action: "remove", id }, "Joueur supprimé", b)) openId = null; }
+  });
+  plist.addEventListener("submit", e => {
+    e.preventDefault();
+    const f = e.target, id = f.closest(".pl").dataset.id, v = f.querySelector("input").value.trim(), btn = f.querySelector("button");
+    if (f.dataset.do === "setScore") {
+      if (!/^\d+$/.test(v)) return toast("Entre un nombre entier.", true);
+      act({ action: "setScore", id, best: Number(v) }, "Score modifié", btn);
+    } else {
+      if (!v) return toast("Entre un pseudo.", true);
+      act({ action: "rename", id, pseudo: v }, "Pseudo modifié", btn);
+    }
+  });
+  document.querySelectorAll("[data-global]").forEach(b => b.addEventListener("click", () => {
+    if (b.dataset.global === "resetDaily") {
+      if (confirm("Vider le classement du défi du jour pour tout le monde ?")) act({ action: "resetDaily" }, "Défi du jour vidé", b);
+    } else {
+      const c = prompt("Tous les scores et tous les défis seront remis à zéro (les pseudos sont gardés).\nTape RESET pour confirmer :");
+      if (c !== null) act({ action: "resetAll", confirm: c.trim().toUpperCase() }, "Classement remis à zéro", b);
+    }
+  }));
+
+})();
+</script>
+</body></html>

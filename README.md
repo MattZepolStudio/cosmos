@@ -198,7 +198,18 @@ joueurs ayant battu leur record, joueurs du défi du jour. Elle se met à jour t
 Sans la variable, la page n'existe pas. Après 10 mauvais mots de passe, elle est bloquée
 une heure pour cette connexion. Les données brutes sont aussi en JSON sur `/admin/stats.json`.
 
-**Gérer les joueurs.** L'onglet **Joueurs Cosmos** de la même page permet de chercher un
+**La page `/admin`.** Une page par jeu : glisse de droite à gauche (ou touche l'onglet) pour
+passer de Cosmos à JoSky. Elle se met à jour toute seule toutes les 30 secondes, et un toucher
+sur une barre d'un graphique affiche sa valeur.
+- **Cosmos** : joueurs en train de jouer (avec leurs pseudos), chiffres du jour comparés à la
+  veille, joueurs actifs sur 14 jours, heures d'affluence, top 10, défi du jour (top 5,
+  participants, taux de réussite), jusqu'où vont les joueurs (univers, trou noir), totaux, serveur.
+- **JoSky** : joueurs connectés, salons ouverts, chiffres du jour (parties, manches, pic de
+  connexions), parties et joueurs sur 14 jours, heures d'affluence, solo ou entre amis, parties
+  gagnées par les bots, durée moyenne, habitués, totaux. L'historique est enregistré par JoSky
+  (clé Upstash `josky:history`).
+
+**Gérer les joueurs.** Le bouton **Gérer les joueurs** de la page Cosmos permet de chercher un
 joueur, changer son score, le remettre à 0, le renommer, retirer son pseudo, effacer son défi
 du jour ou le supprimer du classement. La zone sensible permet de télécharger une sauvegarde
 complète, de vider le défi du jour ou de remettre tout le classement à zéro (pseudos gardés).
